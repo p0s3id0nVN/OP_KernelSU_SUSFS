@@ -287,7 +287,17 @@ runs:
         set -euo pipefail
         cd "$CONFIG/kernel_platform/common"
         patch -p1 < ../../../kernel_patches/next/scope_min_manual_hooks_v1.4.patch
-        
+
+    - name: Apply my personal random patches
+      shell: bash
+      run: |
+        set -euo pipefail
+        cd "$CONFIG/kernel_platform/common"
+        curl -Ls "https://raw.githubusercontent.com/fatalcoder524/kernel_patches_additional/refs/heads/main/random_qstr.patch" | patch -p1 --forward
+        curl -Ls "https://raw.githubusercontent.com/fatalcoder524/kernel_patches_additional/refs/heads/main/susfs_experiments/xx_maps_sus_kernel.patch" | patch -p1 --forward
+        cd "../KernelSU-Next"
+        curl -Ls "https://raw.githubusercontent.com/fatalcoder524/kernel_patches_additional/refs/heads/main/susfs_experiments/xx_maps_ksu.patch" | patch -p1 --forward
+
     - name: Add KernelSU-Next and SUSFS Configuration Settings
       shell: bash
       run: |
