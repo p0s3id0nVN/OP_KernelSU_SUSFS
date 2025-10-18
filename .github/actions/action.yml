@@ -374,6 +374,9 @@ runs:
         set -euo pipefail
         cd "$CONFIG/kernel_platform/common"
         curl -Ls "https://raw.githubusercontent.com/fatalcoder524/kernel_patches_additional/refs/heads/main/random_qstr.patch" | patch -p1 --forward
+        # Global sus_maps
+        sed -i 's/susfs_is_current_proc_umounted()/1==1/' ./fs/proc/task_mmu.c
+        sed -i 's/susfs_is_current_proc_umounted()/1==1/' ./fs/proc/base.c
 
     - name: Add KernelSU-Next and SUSFS Configuration Settings
       shell: bash
