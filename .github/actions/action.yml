@@ -1027,7 +1027,7 @@ runs:
         cd "$KERNEL_PATH/common"
         mkdir -p out
         CUSTOM_LOCALVERSION="-${ANDROID_VER}-OP-Wild"
-        cat >> common/arch/arm64/configs/gki_defconfig <<EOF
+        cat >> arch/arm64/configs/gki_defconfig <<EOF
         CONFIG_LOCALVERSION="-OP-Wild"
         EOF
         echo "CUSTOM_LOCALVERSION=$CUSTOM_LOCALVERSION" >> "$GITHUB_ENV"
