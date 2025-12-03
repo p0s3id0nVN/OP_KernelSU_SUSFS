@@ -1135,8 +1135,14 @@ runs:
         
         BUILD_START=$(date +%s)
         cd kernel_platform
+        cat >> dummy_status <<EOF
+        #!/bin/bash
+        echo "STABLE_BUILD_SCM_REVISION=ci-build"
+        exit 0
+        EOF
+        
         touch ./common/.scmversion
-        ./tools/bazel build --config=fast --nokleaf_localversion --lto=none //common:kernel_aarch64_dist --verbose_failures --sandbox_debug || exit 1
+        ./tools/bazel build --config=fast --nokleaf_localversion --lto=none --workspace_status_command=//:dummy_status //common:kernel_aarch64_dist --verbose_failures --sandbox_debug || exit 1
         
         BUILD_END=$(date +%s)
         BUILD_TIME=$((BUILD_END - BUILD_START))
