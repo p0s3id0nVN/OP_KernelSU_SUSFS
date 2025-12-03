@@ -1253,12 +1253,12 @@ runs:
           # KCFLAGS_EXTRA="-O3"
         # else
           scripts/config --file "$OUT/.config" -e CC_OPTIMIZE_FOR_PERFORMANCE
-          # scripts/config --file "$OUT/.config" -d CC_OPTIMIZE_FOR_PERFORMANCE_O3
+          scripts/config --file "$OUT/.config" -d CC_OPTIMIZE_FOR_PERFORMANCE_O3
           KCFLAGS_EXTRA="-O2"
         # fi
         
-        # scripts/config --file "$OUT/.config" -e LTO_CLANG_THIN
-        # scripts/config --file "$OUT/.config" -e LTO_CLANG
+        scripts/config --file "$OUT/.config" -d LTO_CLANG_THIN
+        scripts/config --file "$OUT/.config" -e LTO_CLANG
         make O="$OUT" olddefconfig
         
         # ${KCFLAGS_EXTRA}
