@@ -7,7 +7,7 @@
   "kernel_version": "6.12",
   "os_version": "OOS16",
   "hmbird": false,
-  "susfs": false,
+  "susfs": true,
   "bbg": true,
   "bbr": true,
   "ttl": true,
