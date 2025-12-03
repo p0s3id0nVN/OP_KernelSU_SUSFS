@@ -1142,7 +1142,7 @@ runs:
         EOF
         
         touch ./common/.scmversion
-        ./tools/bazel build --config=fast --nokleaf_localversion --lto=none --workspace_status_command=//common:dummy_status //common:kernel_aarch64_dist --verbose_failures --sandbox_debug || exit 1
+        ./tools/bazel build --config=fast --nokleaf_localversion --lto=none --nostamp //common:kernel_aarch64_dist --verbose_failures --sandbox_debug || exit 1
         
         BUILD_END=$(date +%s)
         BUILD_TIME=$((BUILD_END - BUILD_START))
