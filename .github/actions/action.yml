@@ -687,7 +687,8 @@ runs:
         cd KernelSU/kernel
         BASE_VERSION=20000
         KSU_VERSION=$(expr $(/usr/bin/git rev-list --count HEAD) "+" $BASE_VERSION)
-        sed -i "s/DKSU_VERSION=16/DKSU_VERSION=${KSU_VERSION}/" Kbuild
+        sed -i "s/DKSU_VERSION=16/DKSU_VERSION=${KSU_VERSION}/" Kbuild || true
+        sed -i "s/DKSU_VERSION=16/DKSU_VERSION=${KSU_VERSION}/" Makefile || true
         
         echo "NEED_HOOKS=false" >> $GITHUB_ENV
         
