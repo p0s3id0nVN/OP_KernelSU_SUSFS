@@ -659,6 +659,8 @@ runs:
         KSU_VERSION=$(expr $(/usr/bin/git rev-list --count HEAD) "+" $BASE_VERSION)
         sed -i "s/DKSU_VERSION=11998/DKSU_VERSION=${KSU_VERSION}/" Makefile
         
+        echo "NEED_HOOKS=true" >> $GITHUB_ENV
+        
         cd ..
         KSU_COMMIT_SHA=$(git rev-parse HEAD)
         echo "KSU_COMMIT_SHA=$KSU_COMMIT_SHA" >> $GITHUB_ENV
@@ -685,7 +687,9 @@ runs:
         cd KernelSU/kernel
         BASE_VERSION=20000
         KSU_VERSION=$(expr $(/usr/bin/git rev-list --count HEAD) "+" $BASE_VERSION)
-        sed -i "s/DKSU_VERSION=16/DKSU_VERSION=${KSU_VERSION}/" Makefile
+        sed -i "s/DKSU_VERSION=16/DKSU_VERSION=${KSU_VERSION}/" Kbuild
+        
+        echo "NEED_HOOKS=false" >> $GITHUB_ENV
         
         cd ..
         KSU_COMMIT_SHA=$(git rev-parse HEAD)
@@ -858,14 +862,14 @@ runs:
           echo "Hmbird not enabled, skipping fengchi patch"
         fi
         
-        # patch -p1 --forward "../../../kernel_patches/common/optimized_mem_operations.patch"
-        # patch -p1 --forward "../../../kernel_patches/common/file_struct_8bytes_align.patch"
-        # patch -p1 --forward "../../../kernel_patches/common/reduce_cache_pressure.patch"
-        # if [ "$(printf '%s\n' "$KERNEL_VERSION" "$MIN_VERSION" | sort -V | head -n1)" = "$KERNEL_VERSION" ]; then
-          # patch -p1 --forward "../../../kernel_patches/common/clear_page_16bytes_align.patch"
-        # else
-          # cat "../../../kernel_patches/common/clear_page_16bytes_align.patch" | sed -e 's/SYM_FUNC_START_PI(clear_page)/SYM_FUNC_START_PI(__pi_clear_page)/' | patch -p1 -F3 --forward
-        # fi
+        patch -p1 --forward "../../../kernel_patches/common/optimized_mem_operations.patch"
+        patch -p1 --forward "../../../kernel_patches/common/file_struct_8bytes_align.patch"
+        patch -p1 --forward "../../../kernel_patches/common/reduce_cache_pressure.patch"
+        if [ "$(printf '%s\n' "$KERNEL_VERSION" "$MIN_VERSION" | sort -V | head -n1)" = "$KERNEL_VERSION" ]; then
+          patch -p1 --forward "../../../kernel_patches/common/clear_page_16bytes_align.patch"
+        else
+          cat "../../../kernel_patches/common/clear_page_16bytes_align.patch" | sed -e 's/SYM_FUNC_START_PI(clear_page)/SYM_FUNC_START_PI(__pi_clear_page)/' | patch -p1 -F3 --forward
+        fi
         
         echo "✅ Other patches applied"
         echo "::endgroup::"
@@ -972,19 +976,6 @@ runs:
         CONFIG_IP_SET_LIST_SET=y
         EOF
         echo "::endgroup::"
-
-    # - name: Disable RUST
-      # shell: bash
-      # run: |
-        # set -euo pipefail
-        # echo "::group::Disable RUST"
-        # cd "$CONFIG/kernel_platform"
-        # cat >> common/arch/arm64/configs/gki_defconfig <<EOF
-        # # CONFIG_RUST is not set
-        # # CONFIG_ANDROID_BINDER_IPC_RUST is not set
-        # CONFIG_ANDROID_BINDER_IPC=y
-        # EOF
-        # echo "::endgroup::"
 
     - name: Add Build based configs
       shell: bash
