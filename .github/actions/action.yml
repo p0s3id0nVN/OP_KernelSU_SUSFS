@@ -990,6 +990,7 @@ runs:
         CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y
         CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=n
         CONFIG_OPTIMIZE_INLINING=y
+        CONFIG_ANDROID_BINDER_IPC_RUST=m
         EOF
         echo "::endgroup::"
 
@@ -1026,40 +1027,40 @@ runs:
         echo "::endgroup::"
 
 
-    - name: Fix ashmem
-      shell: bash
-      run: |
-        set -euo pipefail
-        echo "::group::Fix ashmem"
-        KERNEL_PATH="$GITHUB_WORKSPACE/$CONFIG/kernel_platform"
-        cd "$KERNEL_PATH"
-        FILE=common/drivers/staging/android/ashmem.c
-        if [[ -f "$FILE" ]] && ! grep -q 'is_ashmem_file' "$FILE"; then
-          cat >>"$FILE" <<'EOF'
-        bool is_ashmem_file(struct file *file) { return false; }
-        int ashmem_area_name(struct file *file, char *name) { return 0; }
-        long ashmem_area_size(struct file *file) { return 0; }
-        struct file *ashmem_area_vmfile(struct file *file) { return NULL; }
-        EXPORT_SYMBOL_GPL(is_ashmem_file);
-        EXPORT_SYMBOL_GPL(ashmem_area_name);
-        EXPORT_SYMBOL_GPL(ashmem_area_size);
-        EXPORT_SYMBOL_GPL(ashmem_area_vmfile);
-        EOF
-        fi
+    # - name: Fix ashmem
+      # shell: bash
+      # run: |
+        # set -euo pipefail
+        # echo "::group::Fix ashmem"
+        # KERNEL_PATH="$GITHUB_WORKSPACE/$CONFIG/kernel_platform"
+        # cd "$KERNEL_PATH"
+        # FILE=common/drivers/staging/android/ashmem.c
+        # if [[ -f "$FILE" ]] && ! grep -q 'is_ashmem_file' "$FILE"; then
+          # cat >>"$FILE" <<'EOF'
+        # bool is_ashmem_file(struct file *file) { return false; }
+        # int ashmem_area_name(struct file *file, char *name) { return 0; }
+        # long ashmem_area_size(struct file *file) { return 0; }
+        # struct file *ashmem_area_vmfile(struct file *file) { return NULL; }
+        # EXPORT_SYMBOL_GPL(is_ashmem_file);
+        # EXPORT_SYMBOL_GPL(ashmem_area_name);
+        # EXPORT_SYMBOL_GPL(ashmem_area_size);
+        # EXPORT_SYMBOL_GPL(ashmem_area_vmfile);
+        # EOF
+        # fi
         
-        sed -i -E 's/\$\(CONFIG_ANDROID_BINDER_IPC_RUST\)/m/g' common/drivers/android/Makefile
-        echo "::endgroup::"
+        # sed -i -E 's/\$\(CONFIG_ANDROID_BINDER_IPC_RUST\)/m/g' common/drivers/android/Makefile
+        # echo "::endgroup::"
 
-    - name: Revert Symbol Import Protection
-      shell: bash
-      run: |
-        set -euo pipefail
-        echo "::group::Symbol Import Protection"
-        KERNEL_PATH="$GITHUB_WORKSPACE/$CONFIG/kernel_platform"
-        cd "$KERNEL_PATH/common"
-        curl -Ls https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8850/commit/a3fde76f1ec7dcd9612611a5501efcad21ed81af.patch | patch -p1 -R
-        curl -Ls https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8850/commit/cf33526ab767b383f7a25c5c29721b4004ec8c49.patch | patch -p1 -R
-        echo "::endgroup::"
+    # - name: Revert Symbol Import Protection
+      # shell: bash
+      # run: |
+        # set -euo pipefail
+        # echo "::group::Symbol Import Protection"
+        # KERNEL_PATH="$GITHUB_WORKSPACE/$CONFIG/kernel_platform"
+        # cd "$KERNEL_PATH/common"
+        # curl -Ls https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8850/commit/a3fde76f1ec7dcd9612611a5501efcad21ed81af.patch | patch -p1 -R
+        # curl -Ls https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8850/commit/cf33526ab767b383f7a25c5c29721b4004ec8c49.patch | patch -p1 -R
+        # echo "::endgroup::"
 
     - name: Run sed and perl Commands
       shell: bash
