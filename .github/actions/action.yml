@@ -1253,6 +1253,14 @@ runs:
           KCFLAGS_EXTRA="-O2"
         # fi
         
+        # Enable GKI ABI/symbol trimming (match Bazel)
+        scripts/config --file "$OUT/.config" -e TRIM_UNUSED_KSYMS
+        scripts/config --file "$OUT/.config" --set-str UNUSED_KSYMS_WHITELIST "abi_symbollist.raw"
+        
+        # Enable module protection (match Bazel)
+        scripts/config --file "$OUT/.config" -e MODULE_SIG_PROTECT
+        scripts/config --file "$OUT/.config" --set-str MODULE_SIG_PROTECT_LIST "protected_module_names_list"
+        
         scripts/config --file "$OUT/.config" -d LTO
         scripts/config --file "$OUT/.config" -d LTO_CLANG
         scripts/config --file "$OUT/.config" -d LTO_CLANG_FULL
