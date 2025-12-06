@@ -1303,7 +1303,11 @@ runs:
         scripts/config --file "$OUT/.config" -d LTO_CLANG
         scripts/config --file "$OUT/.config" -d LTO_CLANG_FULL
         scripts/config --file "$OUT/.config" -d LTO_CLANG_THIN
+        scripts/config --file "$OUT/.config" -e CC_CAN_LINK
+        scripts/config --file "$OUT/.config" -e CC_CAN_LINK_STATIC  
+        scripts/config --file "$OUT/.config" -d UAPI_HEADER_TEST
         make LTO=none O="$OUT" olddefconfig
+        grep -i uapi_header_test "$OUT/.config"
         
         # ${KCFLAGS_EXTRA}
         KCFLAGS="$KCFLAGS -Wno-error -pipe -fno-stack-protector ${KCFLAGS_EXTRA}"
