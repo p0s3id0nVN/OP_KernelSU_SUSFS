@@ -1303,11 +1303,7 @@ runs:
         scripts/config --file "$OUT/.config" -d LTO_CLANG
         scripts/config --file "$OUT/.config" -d LTO_CLANG_FULL
         scripts/config --file "$OUT/.config" -d LTO_CLANG_THIN
-        scripts/config --file "$OUT/.config" -e CC_CAN_LINK
-        scripts/config --file "$OUT/.config" -e CC_CAN_LINK_STATIC  
-        scripts/config --file "$OUT/.config" -d UAPI_HEADER_TEST
         make LTO=none O="$OUT" olddefconfig
-        grep -i uapi_header_test "$OUT/.config"
         
         # ${KCFLAGS_EXTRA}
         KCFLAGS="$KCFLAGS -Wno-error -pipe -fno-stack-protector ${KCFLAGS_EXTRA}"
@@ -1344,6 +1340,16 @@ runs:
             make LTO=none -C "$COMMON" O="$OUT" headers_install prepare 2>&1 | head -n 20 || true
             echo ""
           fi
+        fi
+        
+        # CRITICAL: Force disable after priming
+        scripts/config --file "$OUT/.config" -e CC_CAN_LINK -e CC_CAN_LINK_STATIC
+        scripts/config --file "$OUT/.config" -d UAPI_HEADER_TEST
+        make LTO=none O="$OUT" olddefconfig
+        # Add this verification (fails build if mismatch)
+        grep -E "(HEADERS_INSTALL|CC_CAN_LINK|UAPI_HEADER_TEST)" "$OUT/.config" || echo "✅ Configs match Bazel"
+        if ! grep -q "CONFIG_UAPI_HEADER_TEST=n\|# CONFIG_UAPI_HEADER_TEST" "$OUT/.config"; then
+          echo "::error::UAPI_HEADER_TEST not disabled!"
         fi
         
         BUILD_START=$(date +%s)
