@@ -231,7 +231,10 @@ runs:
 
     - name: Install bindgen if you ever need it
       shell: bash
-      run: cargo install bindgen-cli
+      run: |
+        rustup toolchain install nightly
+        rustup default nightly
+        cargo +nightly install bindgen-cli --version 0.69.5
 
     - name: Setup Base Environment
       shell: bash
