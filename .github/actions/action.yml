@@ -989,10 +989,10 @@ runs:
         cd "$CONFIG/kernel_platform"
         # CONFIG_LTO_CLANG_THIN=y
         # CONFIG_LTO_CLANG=y
+        # CONFIG_OPTIMIZE_INLINING=y
         cat >> common/arch/arm64/configs/gki_defconfig <<EOF
         CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE=y
         CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE_O3=n
-        CONFIG_OPTIMIZE_INLINING=y
         CONFIG_ANDROID_BINDER_IPC_RUST=m
         EOF
         echo "::endgroup::"
@@ -1308,7 +1308,7 @@ runs:
         # ${KCFLAGS_EXTRA}
         KCFLAGS="$KCFLAGS -Wno-error -pipe -fno-stack-protector ${KCFLAGS_EXTRA}"
         # -DCONFIG_OPTIMIZE_INLINING
-        KCPPFLAGS="$KCPPFLAGS -DCONFIG_OPTIMIZE_INLINING"
+        KCPPFLAGS="$KCPPFLAGS"
         
         echo "============================================"
         echo "🔧 Build Configuration"
@@ -1337,7 +1337,7 @@ runs:
         if [ "${{ inputs.clean }}" != "true" ]; then
           if [ ! -d "$CCACHE_DIR" ] || [ -z "$(find "$CCACHE_DIR" -type f 2>/dev/null | head -n1)" ]; then
             echo "🔥 Priming cache with header preprocessing..."
-            make -C "$COMMON" O="$OUT" headers_install prepare 2>&1 | head -n 20 || true
+            make LTO=none -C "$COMMON" O="$OUT" headers_install prepare 2>&1 | head -n 20 || true
             echo ""
           fi
         fi
