@@ -1026,7 +1026,7 @@ runs:
         CUSTOM_LOCALVERSION="-OP-Wild"
         cat >> arch/arm64/configs/gki_defconfig <<EOF
         CONFIG_LOCALVERSION="-OP-Wild"
-        # CONFIG_UAPI_HEADER_TEST is not set
+        CONFIG_UAPI_HEADER_TEST=n
         EOF
         echo "CUSTOM_LOCALVERSION=$CUSTOM_LOCALVERSION" >> "$GITHUB_ENV"
         echo "::endgroup::"
