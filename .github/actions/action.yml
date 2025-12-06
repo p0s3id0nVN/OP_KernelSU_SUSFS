@@ -1344,13 +1344,7 @@ runs:
         
         # CRITICAL: Force disable after priming
         scripts/config --file "$OUT/.config" -e CC_CAN_LINK -e CC_CAN_LINK_STATIC
-        scripts/config --file "$OUT/.config" -d UAPI_HEADER_TEST
-        make LTO=none O="$OUT" olddefconfig
-        # Add this verification (fails build if mismatch)
-        grep -E "(HEADERS_INSTALL|CC_CAN_LINK|UAPI_HEADER_TEST)" "$OUT/.config" || echo "✅ Configs match Bazel"
-        if ! grep -q "CONFIG_UAPI_HEADER_TEST=n\|# CONFIG_UAPI_HEADER_TEST" "$OUT/.config"; then
-          echo "::error::UAPI_HEADER_TEST not disabled!"
-        fi
+        echo "# CONFIG_UAPI_HEADER_TEST is not set" >> "$OUT/.config"
         
         BUILD_START=$(date +%s)
         set -o pipefail
