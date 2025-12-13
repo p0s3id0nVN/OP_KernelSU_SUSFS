@@ -8,7 +8,7 @@
   "os_version": "OOS16",
   "disk_cleanup": false,
   "hmbird": true,
-  "susfs": true,
+  "susfs": false,
   "bbg": true,
   "bbr": true,
   "ttl": true,
