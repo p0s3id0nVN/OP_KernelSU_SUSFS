@@ -633,7 +633,12 @@ runs:
         echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
         echo "KernelSU Next Version: $KSU_VERSION"
         echo "✅ KernelSU Next added (commit: ${KSU_COMMIT_SHA:0:8})"
-        echo "NEED_HOOKS=true" >> $GITHUB_ENV
+        
+        if [ "$KSU_VERSION" -lt 12884 ]; then
+          echo "NEED_HOOKS=true" >> $GITHUB_ENV
+        else
+          echo "NEED_HOOKS=false" >> $GITHUB_ENV
+        fi
         echo "::endgroup::"
 
     - name: Add KernelSU
@@ -662,7 +667,7 @@ runs:
         echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
         echo "KernelSU Version: $KSU_VERSION"
         echo "✅ KernelSU added (commit: ${KSU_COMMIT_SHA:0:8})"
-        echo "NEED_HOOKS=true" >> $GITHUB_ENV
+        echo "NEED_HOOKS=false" >> $GITHUB_ENV
         echo "::endgroup::"
 
     - name: Apply SUSFS Patches
