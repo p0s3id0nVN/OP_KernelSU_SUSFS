@@ -633,6 +633,7 @@ runs:
         echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
         echo "KernelSU Next Version: $KSU_VERSION"
         echo "✅ KernelSU Next added (commit: ${KSU_COMMIT_SHA:0:8})"
+        echo "NEED_HOOKS=true" >> $GITHUB_ENV
         echo "::endgroup::"
 
     - name: Add KernelSU
@@ -661,6 +662,7 @@ runs:
         echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
         echo "KernelSU Version: $KSU_VERSION"
         echo "✅ KernelSU added (commit: ${KSU_COMMIT_SHA:0:8})"
+        echo "NEED_HOOKS=true" >> $GITHUB_ENV
         echo "::endgroup::"
 
     - name: Apply SUSFS Patches
@@ -844,7 +846,17 @@ runs:
         set -euo pipefail
         echo "::group::Apply KSU hooks"
         cd "$CONFIG/kernel_platform/common"
-        patch -p1 < ../../../kernel_patches/next/scope_min_manual_hooks_v1.4.patch
+        
+        if [ "${{ inputs.ksu_type }}" = "KSUN" ] && [ "${{ env.KSUVER }}" -gt 12883 ]; then
+          PATCH=scope_min_manual_hooks_v1.6.patch
+        elif [ "${{ inputs.ksu_type }}" = "KSU" ]; then
+          PATCH=scope_min_manual_hooks_v1.6.patch
+        else
+          PATCH=scope_min_manual_hooks_v1.4.patch
+        fi
+        
+        echo "Using patch: $PATCH"
+        patch -p1 < "../../../kernel_patches/next/$PATCH"
         echo "✅ KSU hooks applied"
         echo "::endgroup::"
 
