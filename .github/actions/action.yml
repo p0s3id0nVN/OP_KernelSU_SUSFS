@@ -961,6 +961,9 @@ runs:
           cat "../../../kernel_patches/common/clear_page_16bytes_align.patch" | sed -e 's/SYM_FUNC_START_PI(clear_page)/SYM_FUNC_START_PI(__pi_clear_page)/' | patch -p1 -F3 --forward
         fi
         
+        echo "Test a SusFS patch to prevent ..5.u.S file creation"
+        curl -Ls https://raw.githubusercontent.com/fatalcoder524/kernel_patches_additional/refs/heads/main/susfs_experiments/test_no_5uS.patch | patch -p1 --forward
+        
         echo "✅ Other patches applied"
         echo "::endgroup::"
 
