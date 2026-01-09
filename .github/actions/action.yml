@@ -1039,6 +1039,29 @@ runs:
         echo "✅ Other patches applied"
         echo "::endgroup::"
 
+    - name: Add nomount support (MaxSteel)
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "::group::Apply nomount support (MaxSteel)"
+        cd "$CONFIG/kernel_platform/common"
+        KERNEL_VERSION="${{ env.KERNEL_VER }}"
+        MIN_VERSION="5.11"
+        if [ "$(printf '%s\n' "$KERNEL_VERSION" "$MIN_VERSION" | sort -V | head -n1)" = "$KERNEL_VERSION" ]; then
+          echo "Patching nomount 5.10!"
+          curl -Ls https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/experimental/patches/nomount-susfs-kernel-5.10.patch | patch -p1 --forward -F3
+        else
+          echo "Patching nomount! 5.15 - 6.6"
+          curl -Ls https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/experimental/patches/nomount-susfs-kernel-5.15-6.6.patch | patch -p1 --forward -F3
+        fi
+        
+        cat >> arch/arm64/configs/gki_defconfig <<EOF
+        CONFIG_NOMOUNT=y
+        EOF
+        
+        echo "✅ nomount support (MaxSteel) applied"
+        echo "::endgroup::"
+
     - name: Apply KSU Hooks
       shell: bash
       if: ${{ env.NEED_HOOKS == 'true' }}
