@@ -1050,9 +1050,12 @@ runs:
         if [ "$(printf '%s\n' "$KERNEL_VERSION" "$MIN_VERSION" | sort -V | head -n1)" = "$KERNEL_VERSION" ]; then
           echo "Patching nomount 5.10!"
           curl -Ls https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/experimental/patches/nomount-susfs-kernel-5.10.patch | patch -p1 --forward -F3
+        elif [ "$(printf '%s\n' "$KERNEL_VERSION" "6.5" | sort -V | head -n1)" = "$KERNEL_VERSION" ]; then
+          echo "Patching nomount! 5.15 - 6.1"
+          curl -Ls https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/experimental/patches/nomount-susfs-kernel-5.15-6.1.patch | patch -p1 --forward -F3
         else
-          echo "Patching nomount! 5.15 - 6.6"
-          curl -Ls https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/experimental/patches/nomount-susfs-kernel-5.15-6.6.patch | patch -p1 --forward -F3
+          echo "Patching nomount! 6.6"
+          curl -Ls https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/experimental/patches/nomount-susfs-kernel-6.6.patch | patch -p1 --forward -F3
         fi
         
         cat >> arch/arm64/configs/gki_defconfig <<EOF
