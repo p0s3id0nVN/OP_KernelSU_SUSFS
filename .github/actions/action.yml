@@ -702,6 +702,30 @@ runs:
         sed -i 's/protected_modules = \[.*\]/protected_modules = []/' common/modules.bzl || true
         df -h
 
+    # - name: Make kernel scripts Python 3 compatible
+      # shell: bash
+      # run: |
+        # set -euo pipefail
+        # # Fix print statements in known Python scripts
+        # cd "$COMMON_KERNEL_FOLDER"
+        # FILE="scripts/gcc-wrapper.py"
+        # if [ -f "$FILE" ]; then
+          # echo "Patching $FILE for Python 3 compatibility..."
+          # # Replace ONLY the problematic print line(s)
+          # sed -i 's|print "error, forbidden warning:", m\.group(2)|print("error, forbidden warning:", m.group(2))|' "$FILE"
+          # # Optional: also fix any other simple print "..." lines
+          # sed -i 's|^\([[:space:]]*\)print "\(.*\)"$|\1print("\2")|' "$FILE"
+          # sed -i 's|^\([[:space:]]*\)print "\(.*\)", \(.*\)$|\1print("\2", \3)|' "$FILE"
+          # sed -i 's|^\([[:space:]]*\)print \("[^"]*"\)\(.*\)$|\1print(\2\3)|' "$FILE"
+          # sed -i "s|^\([[:space:]]*\)print \([^,]*\),\$|\1print(\2, end='')|" "$FILE"
+          # sed -i "s|^\([[:space:]]*\)print \([^,(].*\)$|\1print(\2)|" "$FILE"
+          
+          # sed -n '30,40p' scripts/gcc-wrapper.py
+          # sed -n '59p' scripts/gcc-wrapper.py
+        # else
+          # echo "⚠️ $FILE not found!"
+        # fi
+
     - name: Add KernelSU Next
       shell: bash
       if: ${{ inputs.ksu_type == 'KSUN' }}
@@ -1193,6 +1217,12 @@ runs:
         cd "$COMMON_KERNEL_FOLDER"
         : > "$COMMON_KERNEL_FOLDER/.scmversion"
         
+        # Fix line endings
+        find . -type f \( -name "Kconfig" -o -name "*.mk" -o -name "Makefile" \) -exec dos2unix {} \; 2>/dev/null || true
+        
+        # Optionally: disable wrapper in Makefile (robust)
+        sed -i 's|CC.*scripts/gcc-wrapper\.py.*|CC := $(REAL_CC)|' Makefile
+        
         export PYTHONWARNINGS="${PYTHONWARNINGS}"
         
         echo "Getting last commit timestamp from kernel source..."
@@ -1235,6 +1265,7 @@ runs:
         export CXX="ccache clang++"
         export HOSTCC="ccache clang"
         export HOSTCXX="ccache clang++"
+        export REAL_CC=clang
         
         BASE_PATH="/usr/lib/ccache:${CLANG_BIN_PATH}:${KERNEL_PLATFORM_FOLDER}/prebuilts/kernel-build-tools/linux-x86/bin/:${KERNEL_PLATFORM_FOLDER}/prebuilts/kernel-build-tools/linux_musl-x86/bin/"
         
