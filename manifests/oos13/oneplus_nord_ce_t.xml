@@ -9,5 +9,5 @@
   </project>
   <project remote="origin" name="android_kernel_modules_and_devicetree_oneplus_sm7225" path="./" revision="oneplus/sm7225_t_13.0_oneplus_nordce_5g"/>
   <project remote="aosp" name="kernel/prebuilts/build-tools" path="kernel_platform/prebuilts/kernel-build-tools" revision="96755e2ffffe500011eecd81b63eeaf2d484338e"/>
-  <project remote="aosp" name="platform/prebuilts/clang/host/linux-x86" path="kernel_platform/prebuilts/clang/host/linux-x86" clone-depth="1" revision="252aba16f513a857bc923172f67b0e55e23de35f" />
+  <project name="kernelplatform/prebuilts-master/clang/host/linux-x86" path="kernel_platform/prebuilts/clang/host/linux-x86" clone-depth="1" revision="77be4c0ba80f3a10fe81bff9c3512c8bf8b15d7c" />
 </manifest>
