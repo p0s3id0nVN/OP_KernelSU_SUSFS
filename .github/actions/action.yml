@@ -1225,6 +1225,8 @@ runs:
         # Optionally: disable wrapper in Makefile (robust)
         sed -i 's|CC.*scripts/gcc-wrapper\.py.*|CC := $(REAL_CC)|' Makefile
         
+        curl -Ls https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8550/commit/ed6ed11830a9ded520db31a6e2b69b6b0a1eb0e2.patch | patch -p1 -F 3
+        
         export PYTHONWARNINGS="${PYTHONWARNINGS}"
         
         echo "Getting last commit timestamp from kernel source..."
