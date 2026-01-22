@@ -29,7 +29,7 @@ on:
           - android14-6.1
           - android13-5.15
           - android12-5.10
-        default: OOS14+15+16
+        default: OOS13
       ksu_options:
         description: 'Enter KernelSU build json'
         required: true
@@ -351,10 +351,13 @@ jobs:
           set -euo pipefail
           echo "::group::Install dependencies"
           sudo apt-get -o Acquire::Retries=3 update -qq
+          sudo add-apt-repository universe
+          wget http://security.ubuntu.com/ubuntu/pool/universe/n/ncurses/libtinfo5_6.3-2ubuntu0.1_amd64.deb
+          sudo dpkg -i libtinfo5_6.3-2ubuntu0.1_amd64.deb
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            git curl ca-certificates build-essential clang lld flex bison \
+            git curl ca-certificates build-essential libc6-dev binutils-aarch64-linux-gnu clang lld flex bison \
             libelf-dev libssl-dev libncurses-dev zlib1g-dev liblz4-tool \
-            libxml2-utils rsync unzip dwarves file python3 ccache jq bc dos2unix kmod libdw-dev elfutils
+            libxml2-utils rsync unzip dwarves file python3 ccache jq bc dos2unix kmod libdw-dev elfutils gcc-multilib g++-multilib libc6-dev-i386
           sudo apt-get clean
           echo "✅ Dependencies installed"
           echo "::endgroup::"
