@@ -1046,23 +1046,19 @@ runs:
         echo "::group::Apply nomount support (MaxSteel)"
         cd "$CONFIG/kernel_platform/common"
         KERNEL_VERSION="${{ env.KERNEL_VER }}"
-        MIN_VERSION="5.11"
+        MIN_VERSION="6.7"
         if [ "$(printf '%s\n' "$KERNEL_VERSION" "$MIN_VERSION" | sort -V | head -n1)" = "$KERNEL_VERSION" ]; then
-          echo "Patching nomount 5.10!"
-          curl -Ls https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/experimental/patches/nomount-susfs-kernel-5.10.patch | patch -p1 --forward -F3
-        elif [ "$(printf '%s\n' "$KERNEL_VERSION" "6.5" | sort -V | head -n1)" = "$KERNEL_VERSION" ]; then
-          echo "Patching nomount! 5.15 - 6.1"
-          curl -Ls https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/experimental/patches/nomount-susfs-kernel-5.15-6.1.patch | patch -p1 --forward -F3
+          echo "Patching nomount 5.10 - 6.6!"
+          curl -Ls "https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/master/patches/nomount-susfs-kernel-$KERNEL_VERSION.patch" | patch -p1 --forward -F3
+          cat >> arch/arm64/configs/gki_defconfig <<EOF
+          CONFIG_NOMOUNT=y
+        EOF
+          echo "✅ nomount support (MaxSteel) applied"
         else
-          echo "Patching nomount! 6.6"
-          curl -Ls https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/experimental/patches/nomount-susfs-kernel-6.6.patch | patch -p1 --forward -F3
+          echo "nomount not supported"
+          echo "✅ nomount support (MaxSteel) not applied as it's not supported!"
         fi
         
-        cat >> arch/arm64/configs/gki_defconfig <<EOF
-        CONFIG_NOMOUNT=y
-        EOF
-        
-        echo "✅ nomount support (MaxSteel) applied"
         echo "::endgroup::"
 
     - name: Apply KSU Hooks
