@@ -31,16 +31,19 @@ jobs:
           echo "{}" > new_state.json
           
           # 2. Get All Repos
-          # REPOS=$(gh repo list $ORG --limit 1000 --json name --jq '.[].name')
-          
+          echo "🔍 Fetching repository list from $ORG..."
           REPOS=$(gh repo list $ORG --limit 1000 --json name --jq '.[] | select(.name | startswith("android_kernel_") and (contains("modules") | not)) | .name')
-          
+          REPO_COUNT=$(echo "$REPOS" | wc -w)
+          echo "✅ Found $REPO_COUNT matching repositories."
+
           echo "## 🚀 OnePlusOSS Update Summary" >> $GITHUB_STEP_SUMMARY
           
           # 3. Check for New Repos
+          echo "🆕 Checking for new repositories..."
           NEW_REPOS_FOUND=""
           for repo in $REPOS; do
             if ! jq -e ".\"$repo\"" "$STATE_FILE" > /dev/null; then
+               echo "  ✨ New repo detected: $repo"
                NEW_REPOS_FOUND+="$repo "
             fi
           done
@@ -55,36 +58,49 @@ jobs:
           echo "| Repo | Branch | Latest Commit | Kernel | Status |" >> $GITHUB_STEP_SUMMARY
           echo "| :--- | :--- | :--- | :--- | :--- |" >> $GITHUB_STEP_SUMMARY
 
+          echo "🛠 Starting deep scan of branches..."
           for repo in $REPOS; do
             # Skip blacklisted repos
-            if [[ "$BLACKLIST" =~ "$repo" ]]; then continue; fi
+            if [[ "$BLACKLIST" =~ "$repo" ]]; then 
+              echo "⏩ Skipping blacklisted repo: $repo"
+              continue; 
+            fi
+
+            echo "📂 Processing: $repo"
 
             # Get all branches for this repo
             BRANCHES=$(gh api repos/$ORG/$repo/branches --jq '.[].name')
 
             for branch in $BRANCHES; do
+              echo "  ↳ 🌿 Branch: $branch"
+              
               # Get latest commit info
-              COMMIT_DATA=$(gh api repos/$ORG/$repo/commits/$branch --jq '{msg: .commit.message, sha: .sha}')
-              MSG=$(echo $COMMIT_DATA | jq -r '.msg' | head -n 1 | cut -c1-50)
+              COMMIT_DATA=$(gh api repos/$ORG/$repo/commits/$branch --jq '{msg: .commit.message, sha: .sha}' 2>/dev/null || echo '{"msg":"N/A","sha":"N/A"}')
+              MSG=$(echo $COMMIT_DATA | jq -r '.msg' | head -n 1 | cut -c1-50 | sed 's/|/ /g') # Remove pipes to avoid breaking MD table
               SHA=$(echo $COMMIT_DATA | jq -r '.sha')
 
-              # Get Kernel Version from Makefile (Direct API call, no clone)
-              # Extracts VERSION, PATCHLEVEL, SUBLEVEL from Makefile
+              # Get Kernel Version
               MAKEFILE_BASE64=$(gh api repos/$ORG/$repo/contents/Makefile?ref=$branch --jq '.content' 2>/dev/null || echo "")
               
               if [ ! -z "$MAKEFILE_BASE64" ]; then
                 KERNEL=$(echo "$MAKEFILE_BASE64" | base64 -d | grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL) =" | cut -d'=' -f2 | tr -d ' ' | paste -sd '.' -)
+                echo "    🐧 Kernel: $KERNEL"
               else
                 KERNEL="N/A"
               fi
 
-              # Compare with Old State
+              # Comparison Logic
               OLD_VAL=$(jq -r ".\"$repo\".\"$branch\" // \"NONE\"" "$STATE_FILE")
               CURRENT_VAL="$SHA|$KERNEL"
               
               STATUS="✅"
-              if [ "$OLD_VAL" == "NONE" ]; then STATUS="🆕";
-              elif [ "$OLD_VAL" != "$CURRENT_VAL" ]; then STATUS="🔄 Updated"; fi
+              if [ "$OLD_VAL" == "NONE" ]; then 
+                STATUS="🆕"
+                echo "    ⭐ New branch found!"
+              elif [ "$OLD_VAL" != "$CURRENT_VAL" ]; then 
+                STATUS="🔄 Updated"
+                echo "    🔼 Change detected!"
+              fi
 
               # Add to Summary Table
               echo "| $repo | $branch | $MSG | $KERNEL | $STATUS |" >> $GITHUB_STEP_SUMMARY
@@ -95,6 +111,7 @@ jobs:
           done
           
           mv new_state.json "$STATE_FILE"
+          echo "🏁 Scan complete. Summary generated."
 
       - name: Save Updated State
         if: success()
