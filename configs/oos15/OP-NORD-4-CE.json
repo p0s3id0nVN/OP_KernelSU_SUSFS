@@ -7,6 +7,8 @@
   "kernel_version": "5.15",
   "os_version": "OOS15",
   "lto": "thin",
+  "c_compiler": "",
+  "rust_compiler": "",
   "rust_build": false,
   "disk_cleanup": false,
   "hmbird": false,
