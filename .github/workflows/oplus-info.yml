@@ -1,0 +1,104 @@
+name: OnePlusOSS Kernel Monitor
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    env:
+      ORG: "OnePlusOSS"
+      # Add repo names to ignore here
+      BLACKLIST: "" 
+      STATE_FILE: "old_state.json"
+
+    steps:
+      - name: Restore Previous State
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.STATE_FILE }}
+          key: state-${{ github.run_id }}
+          restore-keys: |
+            state-master-
+
+      - name: Process Repositories
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 1. Initialize State
+          if [ ! -f "$STATE_FILE" ]; then echo "{}" > "$STATE_FILE"; fi
+          echo "{}" > new_state.json
+          
+          # 2. Get All Repos
+          # REPOS=$(gh repo list $ORG --limit 1000 --json name --jq '.[].name')
+          
+          REPOS=$(gh repo list $ORG --limit 1000 --json name --jq '.[] | select(.name | startswith("android_kernel_") and (contains("modules") | not)) | .name')
+          
+          echo "## 🚀 OnePlusOSS Update Summary" >> $GITHUB_STEP_SUMMARY
+          
+          # 3. Check for New Repos
+          NEW_REPOS_FOUND=""
+          for repo in $REPOS; do
+            if ! jq -e ".\"$repo\"" "$STATE_FILE" > /dev/null; then
+               NEW_REPOS_FOUND+="$repo "
+            fi
+          done
+          
+          if [ ! -z "$NEW_REPOS_FOUND" ]; then
+            echo "### ✨ New Repositories Added" >> $GITHUB_STEP_SUMMARY
+            for r in $NEW_REPOS_FOUND; do echo "* $r" >> $GITHUB_STEP_SUMMARY; done
+          fi
+
+          # 4. Deep Scan (Branches & Kernel Versions)
+          echo "### 📊 Branch Status & Kernel Versions" >> $GITHUB_STEP_SUMMARY
+          echo "| Repo | Branch | Latest Commit | Kernel | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- | :--- | :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+
+          for repo in $REPOS; do
+            # Skip blacklisted repos
+            if [[ "$BLACKLIST" =~ "$repo" ]]; then continue; fi
+
+            # Get all branches for this repo
+            BRANCHES=$(gh api repos/$ORG/$repo/branches --jq '.[].name')
+
+            for branch in $BRANCHES; do
+              # Get latest commit info
+              COMMIT_DATA=$(gh api repos/$ORG/$repo/commits/$branch --jq '{msg: .commit.message, sha: .sha}')
+              MSG=$(echo $COMMIT_DATA | jq -r '.msg' | head -n 1 | cut -c1-50)
+              SHA=$(echo $COMMIT_DATA | jq -r '.sha')
+
+              # Get Kernel Version from Makefile (Direct API call, no clone)
+              # Extracts VERSION, PATCHLEVEL, SUBLEVEL from Makefile
+              MAKEFILE_BASE64=$(gh api repos/$ORG/$repo/contents/Makefile?ref=$branch --jq '.content' 2>/dev/null || echo "")
+              
+              if [ ! -z "$MAKEFILE_BASE64" ]; then
+                KERNEL=$(echo "$MAKEFILE_BASE64" | base64 -d | grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL) =" | cut -d'=' -f2 | tr -d ' ' | paste -sd '.' -)
+              else
+                KERNEL="N/A"
+              fi
+
+              # Compare with Old State
+              OLD_VAL=$(jq -r ".\"$repo\".\"$branch\" // \"NONE\"" "$STATE_FILE")
+              CURRENT_VAL="$SHA|$KERNEL"
+              
+              STATUS="✅"
+              if [ "$OLD_VAL" == "NONE" ]; then STATUS="🆕";
+              elif [ "$OLD_VAL" != "$CURRENT_VAL" ]; then STATUS="🔄 Updated"; fi
+
+              # Add to Summary Table
+              echo "| $repo | $branch | $MSG | $KERNEL | $STATUS |" >> $GITHUB_STEP_SUMMARY
+              
+              # Update new state JSON
+              jq ".\"$repo\".\"$branch\" = \"$CURRENT_VAL\"" new_state.json > tmp.json && mv tmp.json new_state.json
+            done
+          done
+          
+          mv new_state.json "$STATE_FILE"
+
+      - name: Save Updated State
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.STATE_FILE }}
+          key: state-master-${{ github.run_id }}
