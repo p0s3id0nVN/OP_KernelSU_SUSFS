@@ -9,7 +9,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ORG: "OnePlusOSS"
-      # Add repo names to ignore here (comma separated)
       BLACKLIST: "" 
       STATE_FILE: "old_state.json"
       GH_TOKEN: ${{ github.token }}
@@ -58,7 +57,7 @@ jobs:
           echo "| Repo | Branch | Latest Commit | Kernel | Status |" >> $GITHUB_STEP_SUMMARY
           echo "| :--- | :--- | :--- | :--- | :--- |" >> $GITHUB_STEP_SUMMARY
 
-          echo "🛠 Starting deep scan using GraphQL..."
+          echo "🛠 Starting deep scan..."
           for repo in $REPOS; do
             if [[ "$BLACKLIST" =~ "$repo" ]]; then 
               echo "⏩ Skipping blacklisted repo: $repo"
@@ -67,7 +66,7 @@ jobs:
 
             echo "📂 Processing: $repo"
 
-            # Query fetches up to 50 branches, their last commit info, and Makefile text in one go
+            # GraphQL Query
             QUERY='query($name: String!, $owner: String!) {
               repository(name: $name, owner: $owner) {
                 refs(refPrefix: "refs/heads/", first: 50) {
@@ -93,15 +92,14 @@ jobs:
               }
             }'
 
-            # Execute GraphQL Query
+            # Execute Query
             BRANCH_DATA=$(gh api graphql -f query="$QUERY" -f owner="$ORG" -f name="$repo" --jq '.data.repository.refs.nodes[]' 2>/dev/null || echo "")
 
             if [ -z "$BRANCH_DATA" ]; then
-              echo "  ⚠️ No branch data or API error for $repo"
+              echo "  ⚠️ No branch data or error for $repo"
               continue
             fi
 
-            # Use while loop to handle JSON rows safely
             while read -r row; do
               [ -z "$row" ] && continue
               
@@ -110,16 +108,17 @@ jobs:
               MSG=$(echo "$row" | jq -r '.target.message' | head -n 1 | cut -c1-50 | sed 's/|/ /g')
               MAKEFILE_TEXT=$(echo "$row" | jq -r '.target.file.object.text // empty')
 
-              echo "  ↳ 🌿 $BRANCH_NAME"
+              echo "  ↳ 🌿 Branch: $BRANCH_NAME"
 
-              # Extract Kernel Version from text
+              # Extract Kernel Version
               if [ ! -z "$MAKEFILE_TEXT" ]; then
                 KERNEL=$(echo "$MAKEFILE_TEXT" | grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL) =" | cut -d'=' -f2 | tr -d ' ' | paste -sd '.' -)
               else
                 KERNEL="N/A"
               fi
+              echo "    🐧 Kernel: $KERNEL"
 
-              # Comparison Logic
+              # Compare Logic
               OLD_VAL=$(jq -r ".\"$repo\".\"$BRANCH_NAME\" // \"NONE\"" "$STATE_FILE")
               CURRENT_VAL="$SHA|$KERNEL"
               
@@ -132,6 +131,7 @@ jobs:
                 echo "    🔼 Change detected!"
               fi
 
+              # Add to Summary Table
               echo "| $repo | $BRANCH_NAME | $MSG | $KERNEL | $STATUS |" >> $GITHUB_STEP_SUMMARY
               
               # Update State
