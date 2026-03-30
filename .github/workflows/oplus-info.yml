@@ -9,9 +9,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ORG: "OnePlusOSS"
-      # Add repo names to ignore here
+      # Add repo names to ignore here (comma separated)
       BLACKLIST: "" 
       STATE_FILE: "old_state.json"
+      GH_TOKEN: ${{ github.token }}
+      GH_HTTP_TIMEOUT: 600
 
     steps:
       - name: Restore Previous State
@@ -23,8 +25,6 @@ jobs:
             state-master-
 
       - name: Process Repositories
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           # 1. Initialize State
           if [ ! -f "$STATE_FILE" ]; then echo "{}" > "$STATE_FILE"; fi
@@ -53,44 +53,74 @@ jobs:
             for r in $NEW_REPOS_FOUND; do echo "* $r" >> $GITHUB_STEP_SUMMARY; done
           fi
 
-          # 4. Deep Scan (Branches & Kernel Versions)
+          # 4. Deep Scan (GraphQL)
           echo "### 📊 Branch Status & Kernel Versions" >> $GITHUB_STEP_SUMMARY
           echo "| Repo | Branch | Latest Commit | Kernel | Status |" >> $GITHUB_STEP_SUMMARY
           echo "| :--- | :--- | :--- | :--- | :--- |" >> $GITHUB_STEP_SUMMARY
 
-          echo "🛠 Starting deep scan of branches..."
+          echo "🛠 Starting deep scan using GraphQL..."
           for repo in $REPOS; do
-            # Skip blacklisted repos
             if [[ "$BLACKLIST" =~ "$repo" ]]; then 
               echo "⏩ Skipping blacklisted repo: $repo"
-              continue; 
+              continue
             fi
 
             echo "📂 Processing: $repo"
 
-            # Get all branches for this repo
-            BRANCHES=$(gh api repos/$ORG/$repo/branches --jq '.[].name')
+            # Query fetches up to 50 branches, their last commit info, and Makefile text in one go
+            QUERY='query($name: String!, $owner: String!) {
+              repository(name: $name, owner: $owner) {
+                refs(refPrefix: "refs/heads/", first: 50) {
+                  nodes {
+                    name
+                    target {
+                      ... on Commit {
+                        oid
+                        message
+                        file(path: "Makefile") {
+                          ... on TreeEntry {
+                            object {
+                              ... on Blob {
+                                text
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }'
 
-            for branch in $BRANCHES; do
-              echo "  ↳ 🌿 Branch: $branch"
-              
-              # Get latest commit info
-              COMMIT_DATA=$(gh api repos/$ORG/$repo/commits/$branch --jq '{msg: .commit.message, sha: .sha}' 2>/dev/null || echo '{"msg":"N/A","sha":"N/A"}')
-              MSG=$(echo $COMMIT_DATA | jq -r '.msg' | head -n 1 | cut -c1-50 | sed 's/|/ /g') # Remove pipes to avoid breaking MD table
-              SHA=$(echo $COMMIT_DATA | jq -r '.sha')
+            # Execute GraphQL Query
+            BRANCH_DATA=$(gh api graphql -f query="$QUERY" -f owner="$ORG" -f name="$repo" --jq '.data.repository.refs.nodes[]' 2>/dev/null || echo "")
 
-              # Get Kernel Version
-              MAKEFILE_BASE64=$(gh api repos/$ORG/$repo/contents/Makefile?ref=$branch --jq '.content' 2>/dev/null || echo "")
+            if [ -z "$BRANCH_DATA" ]; then
+              echo "  ⚠️ No branch data or API error for $repo"
+              continue
+            fi
+
+            # Use while loop to handle JSON rows safely
+            while read -r row; do
+              [ -z "$row" ] && continue
               
-              if [ ! -z "$MAKEFILE_BASE64" ]; then
-                KERNEL=$(echo "$MAKEFILE_BASE64" | base64 -d | grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL) =" | cut -d'=' -f2 | tr -d ' ' | paste -sd '.' -)
-                echo "    🐧 Kernel: $KERNEL"
+              BRANCH_NAME=$(echo "$row" | jq -r '.name')
+              SHA=$(echo "$row" | jq -r '.target.oid')
+              MSG=$(echo "$row" | jq -r '.target.message' | head -n 1 | cut -c1-50 | sed 's/|/ /g')
+              MAKEFILE_TEXT=$(echo "$row" | jq -r '.target.file.object.text // empty')
+
+              echo "  ↳ 🌿 $BRANCH_NAME"
+
+              # Extract Kernel Version from text
+              if [ ! -z "$MAKEFILE_TEXT" ]; then
+                KERNEL=$(echo "$MAKEFILE_TEXT" | grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL) =" | cut -d'=' -f2 | tr -d ' ' | paste -sd '.' -)
               else
                 KERNEL="N/A"
               fi
 
               # Comparison Logic
-              OLD_VAL=$(jq -r ".\"$repo\".\"$branch\" // \"NONE\"" "$STATE_FILE")
+              OLD_VAL=$(jq -r ".\"$repo\".\"$BRANCH_NAME\" // \"NONE\"" "$STATE_FILE")
               CURRENT_VAL="$SHA|$KERNEL"
               
               STATUS="✅"
@@ -102,12 +132,12 @@ jobs:
                 echo "    🔼 Change detected!"
               fi
 
-              # Add to Summary Table
-              echo "| $repo | $branch | $MSG | $KERNEL | $STATUS |" >> $GITHUB_STEP_SUMMARY
+              echo "| $repo | $BRANCH_NAME | $MSG | $KERNEL | $STATUS |" >> $GITHUB_STEP_SUMMARY
               
-              # Update new state JSON
-              jq ".\"$repo\".\"$branch\" = \"$CURRENT_VAL\"" new_state.json > tmp.json && mv tmp.json new_state.json
-            done
+              # Update State
+              jq ".\"$repo\".\"$BRANCH_NAME\" = \"$CURRENT_VAL\"" new_state.json > tmp.json && mv tmp.json new_state.json
+
+            done <<< "$BRANCH_DATA"
           done
           
           mv new_state.json "$STATE_FILE"
