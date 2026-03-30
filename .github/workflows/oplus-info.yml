@@ -30,11 +30,8 @@ jobs:
           echo "{}" > new_state.json
           
           # 2. Get All Repos
-          echo "🔍 Fetching repository list from $ORG..."
           REPOS=$(gh repo list $ORG --limit 1000 --json name --jq '.[] | select(.name | startswith("android_kernel_") and (contains("modules") | not)) | .name')
-          REPO_COUNT=$(echo "$REPOS" | wc -w)
-          echo "✅ Found $REPO_COUNT matching repositories."
-
+          
           echo "## 🚀 OnePlusOSS Update Summary" >> $GITHUB_STEP_SUMMARY
           
           # 3. Check for New Repos
@@ -52,21 +49,16 @@ jobs:
             for r in $NEW_REPOS_FOUND; do echo "* $r" >> $GITHUB_STEP_SUMMARY; done
           fi
 
-          # 4. Deep Scan (GraphQL)
+          # 4. Deep Scan with Retry Logic
           echo "### 📊 Branch Status & Kernel Versions" >> $GITHUB_STEP_SUMMARY
           echo "| Repo | Branch | Latest Commit | Kernel | Status |" >> $GITHUB_STEP_SUMMARY
           echo "| :--- | :--- | :--- | :--- | :--- |" >> $GITHUB_STEP_SUMMARY
 
-          echo "🛠 Starting deep scan..."
           for repo in $REPOS; do
-            if [[ "$BLACKLIST" =~ "$repo" ]]; then 
-              echo "⏩ Skipping blacklisted repo: $repo"
-              continue
-            fi
+            if [[ "$BLACKLIST" =~ "$repo" ]]; then continue; fi
 
             echo "📂 Processing: $repo"
 
-            # GraphQL Query
             QUERY='query($name: String!, $owner: String!) {
               repository(name: $name, owner: $owner) {
                 refs(refPrefix: "refs/heads/", first: 50) {
@@ -92,11 +84,27 @@ jobs:
               }
             }'
 
-            # Execute Query
-            BRANCH_DATA=$(gh api graphql -f query="$QUERY" -f owner="$ORG" -f name="$repo" --jq '.data.repository.refs.nodes[]' 2>/dev/null || echo "")
+            # --- RETRY BLOCK START ---
+            MAX_RETRIES=5
+            RETRY_COUNT=0
+            BRANCH_DATA=""
+
+            until [ $RETRY_COUNT -ge $MAX_RETRIES ]
+            do
+              BRANCH_DATA=$(gh api graphql -f query="$QUERY" -f owner="$ORG" -f name="$repo" --jq '.data.repository.refs.nodes[]' 2>/dev/null || echo "")
+              
+              if [ ! -z "$BRANCH_DATA" ]; then
+                break
+              fi
+              
+              RETRY_COUNT=$((RETRY_COUNT+1))
+              echo "  ⚠️ API failed for $repo. Retry $RETRY_COUNT/$MAX_RETRIES in 2s..."
+              sleep 2
+            done
+            # --- RETRY BLOCK END ---
 
             if [ -z "$BRANCH_DATA" ]; then
-              echo "  ⚠️ No branch data or error for $repo"
+              echo "  ❌ Failed to fetch $repo after $MAX_RETRIES attempts. Skipping."
               continue
             fi
 
@@ -110,7 +118,6 @@ jobs:
 
               echo "  ↳ 🌿 Branch: $BRANCH_NAME"
 
-              # Extract Kernel Version
               if [ ! -z "$MAKEFILE_TEXT" ]; then
                 KERNEL=$(echo "$MAKEFILE_TEXT" | grep -E "^(VERSION|PATCHLEVEL|SUBLEVEL) =" | cut -d'=' -f2 | tr -d ' ' | paste -sd '.' -)
               else
@@ -118,7 +125,6 @@ jobs:
               fi
               echo "    🐧 Kernel: $KERNEL"
 
-              # Compare Logic
               OLD_VAL=$(jq -r ".\"$repo\".\"$BRANCH_NAME\" // \"NONE\"" "$STATE_FILE")
               CURRENT_VAL="$SHA|$KERNEL"
               
@@ -131,17 +137,13 @@ jobs:
                 echo "    🔼 Change detected!"
               fi
 
-              # Add to Summary Table
               echo "| $repo | $BRANCH_NAME | $MSG | $KERNEL | $STATUS |" >> $GITHUB_STEP_SUMMARY
-              
-              # Update State
               jq ".\"$repo\".\"$BRANCH_NAME\" = \"$CURRENT_VAL\"" new_state.json > tmp.json && mv tmp.json new_state.json
 
             done <<< "$BRANCH_DATA"
           done
           
           mv new_state.json "$STATE_FILE"
-          echo "🏁 Scan complete. Summary generated."
 
       - name: Save Updated State
         if: success()
