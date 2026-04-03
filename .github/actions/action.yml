@@ -922,6 +922,8 @@ runs:
                 echo "Patching Multi-manager sepolicy Support for SusFS kernel!"
                 patch -p1 --forward < "$KERNEL_PATCHES_FOLDER/next/susfs_fix_patches/$susfs_version/multi_sepolicy_fix.patch"
               fi
+              
+              curl -Ls https://raw.githubusercontent.com/fatalcoder524/kernel_patches_additional/refs/heads/main/adb_root_test.patch | patch -p1
             else
               cd "$KSU_FOLDER"
               patch -p1 --forward < "$SUSFS_FOLDER/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch" || true
@@ -1030,6 +1032,9 @@ runs:
         CONFIG_KSU_SUSFS_SUS_MAP=y
         CONFIG_KSU_SUSFS_SUS_SU=n
         EOF
+        
+        sed -i '/static int do_execveat_common(int fd, struct filename \*filename,/i__always_inline long ksu_adb_root_handle_execveat(char *filename, void *envp_in);' "$COMMON_KERNEL_FOLDER/fs/exec.c"
+        sed -i '/ksu_handle_execveat_sucompat(&fd, &filename, &argv, &envp, &flags);/iksu_adb_root_handle_execveat((char *)filename->name, &envp);' "$COMMON_KERNEL_FOLDER/fs/exec.c"
         
         echo "::endgroup::"
 
