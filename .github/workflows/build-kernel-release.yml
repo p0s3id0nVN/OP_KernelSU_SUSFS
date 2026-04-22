@@ -1,4 +1,4 @@
-name: 🚀 Build và Release Kernel OnePlus
+name: Build and Release OnePlus Kernels
 
 permissions:
   contents: write
@@ -8,12 +8,12 @@ on:
   workflow_dispatch:
     inputs:
       make_release:
-        description: '📦 Bạn có muốn tạo Release không?'
+        description: 'Do you want to create a release?'
         required: true
         type: boolean
         default: false
       op_model:
-        description: '📱 Chọn model OnePlus để build'
+        description: 'Select the OnePlus kernels to build'
         required: true
         type: choice
         options:
@@ -28,54 +28,54 @@ on:
           - android14-6.1
           - android13-5.15
           - android12-5.10
-        default: OOS16
+        default: OOS14+15+16
       ksu_options:
-        description: '🧬 Nhập chuỗi JSON cấu hình KernelSU'
+        description: 'Enter KernelSU build json'
         required: true
         type: string
         default: '[{"type":"ksun","hash":"dev"}]'
       optimize_level:
-        description: "⚡ Mức độ tối ưu hóa trình biên dịch"
+        description: "Compiler optimization level"
         required: true
         type: choice
         options: [O2, O3]
         default: O2
       clean_build:
-        description: '🧹 Build sạch (Không sử dụng ccache)'
+        description: 'Clean build (no ccache)'
         type: boolean
         default: false
       debug:
-        description: '🐛 Bật trích xuất các tệp gỡ lỗi (debug artifacts)'
+        description: 'Enable dumping debug related artifacts'
         required: false
         type: boolean
         default: false
       mirror_toolchains:
-        description: '🔄 Bạn có muốn đồng bộ toolchains trước khi build? [99% không cần thiết]'
+        description: 'Do you want to sync toolchains before build? [99% runs not required]'
         required: false
         type: boolean
         default: false
       build_timestamp:
-        description: '🕒 Tùy chỉnh thời gian build cho uname -a (VD: "Tue Feb 10 10:01:02 UTC 2026"). Để trống dùng giờ hiện tại.'
+        description: 'Custom kernel build timestamp for uname -a (e.g. "Tue Feb 10 10:01:02 UTC 2026"). Leave empty for current time.'
         type: string
         default: ''
       android12-5_10_susfs_branch_or_commit:
-        description: '🌿 Nhập Nhánh hoặc mã commit SusFS cho android12-5.10'
+        description: 'Enter SusFS Branch or commit hash for android12-5.10'
         type: string
         default: ''
       android13-5_15_susfs_branch_or_commit:
-        description: '🌿 Nhập Nhánh hoặc mã commit SusFS cho android13-5.15'
+        description: 'Enter SusFS Branch or commit hash for android13-5.15'
         type: string
         default: ''
       android14-6_1_susfs_branch_or_commit:
-        description: '🌿 Nhập Nhánh hoặc mã commit SusFS cho android14-6.1'
+        description: 'Enter SusFS Branch or commit hash for android14-6.1'
         type: string
         default: ''
       android15-6_6_susfs_branch_or_commit:
-        description: '🌿 Nhập Nhánh hoặc mã commit SusFS cho android15-6.6'
+        description: 'Enter SusFS Branch or commit hash for android15-6.6'
         type: string
         default: ''
       android16-6_12_susfs_branch_or_commit:
-        description: '🌿 Nhập Nhánh hoặc mã commit SusFS cho android16-6.12'
+        description: 'Enter SusFS Branch or commit hash for android16-6.12'
         type: string
         default: ''
 
@@ -98,24 +98,24 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_HTTP_TIMEOUT: 600
     steps:
-      - name: 📥 Checkout Code (để truy cập configs/)
+      - name: 📥 Checkout Code (to access configs/)
         uses: actions/checkout@v6
         with:
           sparse-checkout: |
             configs/
           sparse-checkout-cone-mode: false
 
-      - name: 🔍 Tạo ma trận build
+      - name: 🔍 Generate build matrix
         id: set-matrix
         shell: bash
         run: |
           set -euo pipefail
-          echo "::group::Tạo ma trận"
+          echo "::group::Matrix generation"
           
           input="${{ github.event.inputs.op_model }}"
           ksu_options_raw='${{ github.event.inputs.ksu_options }}'
           if ! ksu_options_normalized=$(echo "$ksu_options_raw" | jq -c 'map(if .type then .type |= ascii_upcase | if .hash == null then if .type == "KSUN" then .hash = "dev" elif .type == "KSU" then .hash = "main" else .hash end else . end else error("No type found") end)' 2>&1); then
-            echo "::error::Xác thực ksu_options thất bại: $ksu_options_normalized"
+            echo "::error::ksu_options validation failed: $ksu_options_normalized"
             exit 1
           fi
           
@@ -161,11 +161,11 @@ jobs:
               # Build android*-* only for OOS15 and OOS16
               jq_filter="map(select(.os_version == \"OOS15\" or .os_version == \"OOS16\")) | map(select(.android_version == \"$av\" and .kernel_version == \"$kv\"))"
               
-              echo "ℹ️  Đã áp dụng bộ lọc Android-Kernel: $av-$kv"
-              echo "   Giới hạn ở: Chỉ OOS15 và OOS16"
+              echo "ℹ️  Android-Kernel filter applied: $av-$kv"
+              echo "   Restricted to: OOS15 and OOS16 only"
               ;;
             *)
-              echo "::warning::Đầu vào không xác định '$input'. Đang sử dụng bộ lọc trống."
+              echo "::warning::Unknown input '$input'. Using empty filter."
               jq_filter="map(select(false))"
               ;;
           esac
@@ -181,9 +181,9 @@ jobs:
           ')
           
           if [ "$count" -eq 0 ]; then
-            echo "::error::Không tìm thấy file config nào cho đầu vào '$input' sau khi lọc!"
+            echo "::error::No config files found for input '$input' after applying filters!"
             echo ""
-            echo "Các cấu hình khả dụng:"
+            echo "Available configurations:"
             jq -r '.[] | "  - \(.model) (\(.os_version), \(.android_version)-\(.kernel_version))"' matrix.json
             exit 1
           fi
@@ -195,9 +195,9 @@ jobs:
           
           final_count=$(echo "$merged_matrix" | jq 'length')
           
-          echo "✅ Tìm thấy $final_count thiết bị cần build"
+          echo "✅ Found $final_count device(s) to build"
           echo ""
-          echo "Các thiết bị đã chọn:"
+          echo "Selected devices:"
           jq -r '.[] | "  - \(.model) (\(.os_version), \(.android_version)-\(.kernel_version), \(.ksu_type) - \(.ksu_hash))"' <<<"$merged_matrix"
           
           echo "count=$count" >> "$GITHUB_OUTPUT"
@@ -228,35 +228,35 @@ jobs:
           RETRY_COUNT=0
           RETRY_DELAY=5 # Seconds to wait between retries
           
-          echo "Đang phân giải mã hash $ksu_type ($ksu_ref)..."
+          echo "Resolving $ksu_type hash ($ksu_ref)..."
           
           until [ $RETRY_COUNT -ge $MAX_RETRIES ]; do
             RESULT=$(gh api graphql -f query="$QUERY" -f owner="$KSU_REPO_OWNER" -f name="$KSU_REPO_NAME" -f headRef="$HEAD_REF" -f tagRef="$TAG_REF" -f objRef="$ksu_ref" 2>/dev/null)
             EXIT_CODE=$?
             
             if [ $EXIT_CODE -eq 0 ] && [ ! -z "$RESULT" ]; then
-              echo "  ✅ Gọi API Thành công"
+              echo "  ✅ API Success"
               break
             fi
             
             RETRY_COUNT=$((RETRY_COUNT + 1))
-            echo "::warning::Gọi API thất bại (Lần $RETRY_COUNT/$MAX_RETRIES). Đang thử lại sau ${RETRY_DELAY}s..."
+            echo "::warning::API failed (Attempt $RETRY_COUNT/$MAX_RETRIES). Retrying in ${RETRY_DELAY}s..."
             sleep $RETRY_DELAY
           done
           
           if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-            echo "::error::Không thể kết nối GitHub API. Không thể xác thực $ksu_ref"
+            echo "::error::GitHub API unreachable. Cannot validate $ksu_ref"
             exit 1
           fi
           
           resolved_sha=$(echo "$RESULT" | jq -r '.data.repository | (.hb.t.o // .ht.t.o // .ho.o // "unknown")')
           
           if [ "$resolved_sha" == "unknown" ]; then
-            echo "::error::Ref/Hash '$ksu_ref' không tồn tại trong $KSU_REPO_OWNER/$KSU_REPO_NAME"
+            echo "::error::Ref/Hash '$ksu_ref' does not exist in $KSU_REPO_OWNER/$KSU_REPO_NAME"
             exit 1
           fi
           
-          echo "  ✅ Đã phân giải: $ksu_type/$ksu_ref → $resolved_sha"
+          echo "  ✅ Resolved: $ksu_type/$ksu_ref → $resolved_sha"
           echo "ksu_resolved_hash=$resolved_sha" >> "$GITHUB_OUTPUT"
           
           # Inject ksu_resolved_hash into each device in the matrix
@@ -288,7 +288,7 @@ jobs:
               | sort -u
           )
           
-          echo "🔍 Đang phân giải mã hash SUSFS cho: ${active_keys[*]:-none}"
+          echo "🔍 Resolving SUSFS hashes for: ${active_keys[*]:-none}"
           
           declare -A susfs_hashes
           declare -A susfs_versions_per_key
@@ -319,7 +319,7 @@ jobs:
               if [ $EXIT_CODE -eq 0 ] && [ -n "$RESPONSE" ]; then
                 resolved=$(echo "$RESPONSE" | jq -r '.data.project.repository.ch.sha // empty')
                 if [ -n "$resolved" ] && [ "$resolved" != "null" ]; then
-                  echo "  ✅ Truy vấn cho $key thành công"
+                  echo "  ✅ Query for $key Success"
                   
                   if [ "${{ inputs.make_release }}" = "true" ]; then
                     extracted=$(echo "$RESPONSE" | jq -r '.data.project.repository.blobs.nodes[0].rawBlob // empty' | grep '#define SUSFS_VERSION' | awk -F'"' '{print $2}')
@@ -332,24 +332,24 @@ jobs:
               fi
               
               RETRY_COUNT=$((RETRY_COUNT + 1))
-              echo "::warning::GitLab GraphQL API thất bại (Lần $RETRY_COUNT/$MAX_RETRIES). Đang thử lại..."
+              echo "::warning::GitLab GraphQL API failed (Attempt $RETRY_COUNT/$MAX_RETRIES). Retrying..."
               sleep $RETRY_DELAY
             done
             
             # Final Validation — SUSFS hash
             if [ -z "$resolved" ] || [ "$resolved" = "null" ]; then
-              echo "::error::Không thể phân giải SUSFS ref '$user_val' cho $key trên GitLab."
+              echo "::error::Could not resolve SUSFS ref '$user_val' for $key on GitLab."
               exit 1
             fi
             
             # Final Validation — SUSFS version
             if [ "${{ inputs.make_release }}" = "true" ] && [ "${susfs_versions_per_key[$key]:-unknown}" = "unknown" ]; then
-              echo "::error::Không thể trích xuất SUSFS_VERSION từ susfs.h cho '$key' sau $MAX_RETRIES lần thử. Không thể tiếp tục tạo release."
+              echo "::error::Could not extract SUSFS_VERSION from susfs.h for '$key' after $MAX_RETRIES attempts. Cannot proceed with release."
               exit 1
             fi
             
             susfs_hashes["$key"]="$resolved"
-            echo "  ✅ Đã phân giải: $key → $resolved"
+            echo "  ✅ Resolved: $key → $resolved"
           done
           
           # Write CSV list of active GKI versions
@@ -375,7 +375,7 @@ jobs:
             done
             
             if [ "$susfs_base_version" = "unknown" ]; then
-              echo "::error::Không thể trích xuất SUSFS_VERSION từ susfs.h cho bất kỳ GKI key nào. Không thể tiếp tục tạo release."
+              echo "::error::Could not extract SUSFS_VERSION from susfs.h for any active GKI key. Cannot proceed with release."
               exit 1
             fi
             
@@ -383,7 +383,7 @@ jobs:
             for key in "${active_keys[@]}"; do
               key_ver="${susfs_versions_per_key[$key]:-unknown}"
               if [ "$key_ver" != "$susfs_base_version" ]; then
-                echo "::error::Không khớp phiên bản SUSFS: '$key' có '$key_ver', yêu cầu '$susfs_base_version'. Hãy đồng bộ lại trước khi release."
+                echo "::error::SUSFS version mismatch: '$key' has '$key_ver', expected '$susfs_base_version'. Align refs before releasing."
                 exit 1
               fi
             done
@@ -423,7 +423,7 @@ jobs:
           
           echo "::endgroup::"
 
-      - name: 📤 Tải lên build matrix (Artifact)
+      - name: Upload build matrix
         uses: actions/upload-artifact@v7
         with:
           name: build-matrix
@@ -431,7 +431,7 @@ jobs:
           archive: false
           retention-days: 7
 
-      - name: 📊 Bảng tóm tắt kế hoạch Build
+      - name: 📊 Build plan summary
         run: |
           ksu_type="${{ fromJSON(steps.set-matrix.outputs.ksu_options_normalized)[0].type }}"
           ksu_ref="${{ fromJSON(steps.set-matrix.outputs.ksu_options_normalized)[0].hash }}"
@@ -447,32 +447,32 @@ jobs:
           
           build_ts_input="${{ inputs.build_timestamp }}"
           if [ -z "$build_ts_input" ]; then
-            build_ts_display="⏱️ Tự động (giờ hiện tại)"
+            build_ts_display="⏱️ auto (current build time)"
           else
             build_ts_display="📌 \`$build_ts_input\`"
           fi
           
           {
             cat << 'EOF'
-          ## 🎯 Kế hoạch Build
+          ## 🎯 Build Plan
           
-          **Mục tiêu:** ${{ inputs.op_model }}  
-          **Số thiết bị:** ${{ steps.set-matrix.outputs.count }}  
+          **Target:** ${{ inputs.op_model }}  
+          **Devices:** ${{ steps.set-matrix.outputs.count }}  
           
-          **Cấu hình chung:**
+          **Configuration:**
           EOF
           
-            echo "- Cấu hình KSU: $ksu_display"
-            echo "- Thời gian Build: $build_ts_display"
+            echo "- KSU Config: $ksu_display"
+            echo "- Build Timestamp: $build_ts_display"
           
             cat << 'EOF'
-          - Tối ưu hóa: ${{ inputs.optimize_level }}
-          - Build Sạch/Không Ccache: ${{ inputs.clean_build && '✅ Có' || '❌ Không' }}
-          - Tạo Release: ${{ inputs.make_release && '✅ Có' || '❌ Không' }}
-          - Trích xuất Debug Artifacts: ${{ inputs.debug && '✅ Có' || '❌ Không' }}
-          - Đồng bộ toolchains: ${{ inputs.mirror_toolchains && '✅ Có' || '❌ Không' }}
+          - Optimization: ${{ inputs.optimize_level }}
+          - Clean Build/No Ccache: ${{ inputs.clean_build && '✅ Yes' || '❌ No' }}
+          - Create Release: ${{ inputs.make_release && '✅ Yes' || '❌ No' }}
+          - Create Debug Artifacts: ${{ inputs.debug && '✅ Yes' || '❌ No' }}
+          - Sync toolchains: ${{ inputs.mirror_toolchains && '✅ Yes' || '❌ No' }}
           
-          **Cấu hình SUSFS:**
+          **SUSFS Configuration:**
           EOF
           } >> "$GITHUB_STEP_SUMMARY"
           
@@ -503,7 +503,7 @@ jobs:
             
             if [ -z "$value" ]; then
               # Auto: no input > hash resolved by ls-remote
-              echo "- $key: 🔄 tự động (\`$fetched_hash\`)" >> $GITHUB_STEP_SUMMARY
+              echo "- $key: 🔄 auto (\`$fetched_hash\`)" >> $GITHUB_STEP_SUMMARY
             elif [[ "$value" =~ ^[0-9a-f]{40}$ ]]; then
               # Manual 40-char hash > direct passthrough
               echo "- $key: 📌 \`$value\`" >> $GITHUB_STEP_SUMMARY
@@ -514,12 +514,12 @@ jobs:
           done
           
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> **💡 Lưu ý:** Mã Hash được phân giải vào lúc chạy thông qua API trước khi build." >> $GITHUB_STEP_SUMMARY
+          echo "> **💡 Note:** Hashes are resolved at run time via API calls before builds start." >> $GITHUB_STEP_SUMMARY
           
           # Add OOS restriction note for android-kernel filters
           if [[ "${{ inputs.op_model }}" == android*-*.* ]]; then
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "> **⚠️ Bộ lọc Android-Kernel:** Chỉ các thiết bị OOS15 và OOS16 mới được build cho \`${{ inputs.op_model }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "> **⚠️ Android-Kernel Filter:** Only OOS15 and OOS16 devices will be built for \`${{ inputs.op_model }}\`" >> $GITHUB_STEP_SUMMARY
           fi
 
   mirror_toolchain:
@@ -529,7 +529,7 @@ jobs:
     secrets: inherit
 
   build:
-    name: Build (${{ matrix.model }}, ${{ matrix.soc }}, ${{ matrix.branch }}, ${{ matrix.manifest }}, ${{ matrix.android_version }}, ${{ matrix.kernel_version }}, ${{ matrix.os_version }}, ${{ matrix.ksu_type }})
+    name: build (${{ matrix.model }}, ${{ matrix.soc }}, ${{ matrix.branch }}, ${{ matrix.manifest }}, ${{ matrix.android_version }}, ${{ matrix.kernel_version }}, ${{ matrix.os_version }}, ${{ matrix.ksu_type }})
     needs: [set-op-model, mirror_toolchain]
     if: always() && needs.set-op-model.result == 'success' && (needs.mirror_toolchain.result == 'success' || needs.mirror_toolchain.result == 'skipped')
     runs-on: ubuntu-latest
@@ -540,14 +540,14 @@ jobs:
       ksun_ver: ${{ steps.build-stat.outputs.ksu_version }}
       ksu_ver: ${{ steps.build-stat.outputs.ksu_version }}
     steps:
-      - name: 🧹 Dọn dẹp ổ đĩa khẩn cấp
+      - name: 🧹 Emergency Disk Cleanup
         if: ${{ matrix.disk_cleanup }}
         run: |
-          echo "::group::Dung lượng đĩa trước khi dọn dẹp"
+          echo "::group::Disk Usage Before Cleanup"
           df -h
           echo "::endgroup::"
           
-          echo "::group::Đang gỡ bỏ các phần mềm không cần thiết"
+          echo "::group::Removing Unnecessary Software"
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /opt/ghc
@@ -558,50 +558,50 @@ jobs:
           fi
           echo "::endgroup::"
           
-          echo "::group::Dung lượng đĩa sau khi dọn dẹp"
+          echo "::group::Disk Usage After Cleanup"
           df -h
           AVAIL=$(df -h / | awk 'NR==2 {print $4}')
-          echo "✅ Dung lượng trống: $AVAIL"
+          echo "✅ Available space: $AVAIL"
           echo "::endgroup::"
 
-      - name: ⬇️ Tải xuống script util_free_space.sh của Apache Arrow
+      - name: Download Apache Arrow's util_free_space.sh
         if: ${{ matrix.disk_cleanup }}
         run: |
           curl -L -o util_free_space.sh https://raw.githubusercontent.com/apache/arrow/main/ci/scripts/util_free_space.sh
           chmod +x util_free_space.sh
           ./util_free_space.sh
 
-      - name: 📥 Checkout Mã nguồn
+      - name: 📥 Checkout Code
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
-      - name: 📦 Cài đặt thư viện phụ thuộc tối giản
+      - name: Install Minimal Dependencies
         run: |
           set -euo pipefail
-          echo "::group::Cài đặt thư viện"
+          echo "::group::Install dependencies"
           sudo apt-get -o Acquire::Retries=3 update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             git curl ca-certificates build-essential clang lld flex bison \
             libelf-dev libssl-dev libncurses-dev zlib1g-dev liblz4-tool \
             libxml2-utils rsync unzip dwarves file python3 ccache jq bc dos2unix kmod libdw-dev elfutils pigz
           sudo apt-get clean
-          echo "✅ Cài đặt hoàn tất"
+          echo "✅ Dependencies installed"
           echo "::endgroup::"
 
-      - name: 💾 Dung lượng ổ đĩa (trước khi build)
+      - name: 📦 Disk usage (pre-build)
         run: |
-          echo "::group::Dung lượng ổ đĩa trước khi build"
+          echo "::group::Disk usage pre-build"
           df -h /
           du -sh "$GITHUB_WORKSPACE" 2>/dev/null || true
           sudo rm -rf /tmp/* || true
           echo "::endgroup::"
 
-      - name: ♻️ Cấu hình ccache (giới hạn)
+      - name: ♻️ Configure ccache (bounded)
         if: ${{ inputs.clean_build != true }}
         run: |
           if command -v ccache >/dev/null 2>&1; then
-            echo "::group::Cấu hình ccache"
+            echo "::group::ccache configuration"
             ccache -o max_size=1.0G
             ccache -o compression=true
             ccache -o compression_level=3
@@ -609,13 +609,13 @@ jobs:
             echo "::endgroup::"
           fi
 
-      - name: ⚙️ Chuẩn bị op_config_json (không có trường KSU)
+      - name: 🧹 Prepare op_config_json (without KSU fields)
         id: prepare_config
         shell: bash
         run: |
           echo "config_json=$(jq -nc --argjson m '${{ toJSON(matrix) }}' '$m | del(.ksu_type, .ksu_hash, .ksu_resolved_hash)')" >> "$GITHUB_OUTPUT"
 
-      - name: 🔨 Biên dịch Kernel
+      - name: 🔨 Build Kernel
         id: build
         uses: ./.github/actions/build-kernel
         with:
@@ -629,25 +629,25 @@ jobs:
           debug: ${{ inputs.debug }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 📊 Thống kê quá trình Build
+      - name: 📊 Build statistics
         id: build-stat
         if: always()
         run: |
-          echo "::group::Thống kê quá trình Build"
+          echo "::group::Build Statistics"
           
-          echo "Thiết bị: ${{ matrix.model }}"
-          echo "Phiên bản OS: ${{ matrix.os_version }}"
+          echo "Device: ${{ matrix.model }}"
+          echo "OS Version: ${{ matrix.os_version }}"
           echo "Kernel: ${{ matrix.android_version }}-${{ matrix.kernel_version }}"
           if [ "${{ matrix.susfs }}" = true ]; then
             echo "SUSFS Hash: ${{ matrix.susfs_resolved_hash }}"
           fi
-          echo "Trạng thái: ${{ job.status }}"
+          echo "Status: ${{ job.status }}"
           
           if [ "${{ steps.build.outcome }}" = "success" ]; then
             echo ""
-            echo "✅ Build thành công hoàn toàn"
+            echo "✅ Build completed successfully"
             echo ""
-            echo "Sản phẩm đầu ra:"
+            echo "Outputs:"
             echo "  - Kernel: ${{ steps.build.outputs.kernel_version }}"
             if [ "${{ matrix.ksu_type }}" = "KSUN" ]; then
               echo "  - KSU Next: v${{ steps.build.outputs.ksu_version }}"
@@ -661,30 +661,30 @@ jobs:
             if [ "${{ matrix.susfs }}" = true ]; then
               echo "  - SUSFS: ${{ steps.build.outputs.susfs_version }}"
             fi
-            echo "  - Thời gian build: ${{ steps.build.outputs.build_time }}s"
+            echo "  - Build time: ${{ steps.build.outputs.build_time }}s"
             
             if [ "${{ inputs.clean_build }}" != "true" ]; then
-              echo "  - Tỷ lệ ccache trúng (hit rate): ${{ steps.build.outputs.ccache_hit_rate }}"
-              echo "  - Tỷ lệ ccache trực tiếp (direct rate): ${{ steps.build.outputs.ccache_direct_rate }}"
+              echo "  - ccache hit rate: ${{ steps.build.outputs.ccache_hit_rate }}"
+              echo "  - ccache direct rate: ${{ steps.build.outputs.ccache_direct_rate }}"
             else
-              echo "  - ccache: đã tắt (clean build)"
+              echo "  - ccache: disabled (clean build)"
             fi
             
             if [ -n "${{ steps.build.outputs.warnings }}" ]; then
-              echo "  - Cảnh báo: ${{ steps.build.outputs.warnings }}"
+              echo "  - Warnings: ${{ steps.build.outputs.warnings }}"
             fi
           else
-            echo "❌ Build thất bại"
+            echo "❌ Build failed"
           fi
           
           echo "::endgroup::"
 
-      - name: 📝 Tóm tắt Job
+      - name: 📝 Job summary
         if: always()
         run: |
           cat >> $GITHUB_STEP_SUMMARY << EOF
           
-          ### ${{ matrix.model }} (${{ matrix.os_version }}) - ${{ job.status == 'success' && '✅ Thành công' || '❌ Thất bại' }}
+          ### ${{ matrix.model }} (${{ matrix.os_version }}) - ${{ job.status == 'success' && '✅ Success' || '❌ Failed' }}
           
           **Kernel:** ${{ matrix.android_version }}-${{ matrix.kernel_version }}
           EOF
@@ -697,7 +697,7 @@ jobs:
           
           if [ "${{ steps.build.outcome }}" = "success" ]; then
             cat >> $GITHUB_STEP_SUMMARY << EOF
-          | Thông số | Giá trị |
+          | Metric | Value |
           |--------|-------|
           | **Kernel** | ${{ steps.build.outputs.kernel_version }} |
           EOF
@@ -717,18 +717,18 @@ jobs:
           EOF
             fi
           cat >> $GITHUB_STEP_SUMMARY << EOF
-          | **Thời gian Build** | ${{ steps.build.outputs.build_time }}s |
+          | **Build Time** | ${{ steps.build.outputs.build_time }}s |
           EOF
             
             if [ "${{ inputs.clean_build }}" != "true" ]; then
               cat >> $GITHUB_STEP_SUMMARY << EOF
-          | **Tỷ lệ ccache Hit** | ${{ steps.build.outputs.ccache_hit_rate }} |
-          | **Tỷ lệ ccache Direct** | ${{ steps.build.outputs.ccache_direct_rate }} |
+          | **ccache Hit Rate** | ${{ steps.build.outputs.ccache_hit_rate }} |
+          | **ccache Direct Rate** | ${{ steps.build.outputs.ccache_direct_rate }} |
           EOF
             fi
             
             if [ -n "${{ steps.build.outputs.warnings }}" ]; then
-              echo "| **Cảnh báo** | ${{ steps.build.outputs.warnings }} |" >> $GITHUB_STEP_SUMMARY
+              echo "| **Warnings** | ${{ steps.build.outputs.warnings }} |" >> $GITHUB_STEP_SUMMARY
             fi
             
             cat >> $GITHUB_STEP_SUMMARY << EOF
@@ -738,29 +738,29 @@ jobs:
           EOF
           fi
 
-      - name: 🧹 Dọn dẹp cuối cùng và báo cáo dung lượng
+      - name: 🧹 Final cleanup and space report
         if: always()
         run: |
-          echo "::group::Dọn dẹp"
+          echo "::group::Cleanup"
           
-          # Xóa các artifact build nhưng GIỮ LẠI ccache
+          # Remove build artifacts but PRESERVE ccache
           sudo rm -rf "$GITHUB_WORKSPACE/out" || true
           sudo rm -rf "$GITHUB_WORKSPACE/build" || true
           sudo rm -rf "$GITHUB_WORKSPACE/kernel/out" || true
           sudo rm -rf "$GITHUB_WORKSPACE/.repo" || true
           sudo rm -rf /tmp/* || true
           
-          # Hiển thị thống kê ccache (không xóa nó!)
+          # Show ccache stats (don't clear it!)
           if command -v ccache >/dev/null 2>&1; then
             echo ""
-            echo "📊 Thống kê ccache sau khi build:"
+            echo "📊 ccache statistics after build:"
             ccache -s
             echo ""
-            echo "💾 ccache đã được giữ lại cho lần build tiếp theo"
+            echo "💾 ccache preserved for next build"
           fi
           
           echo ""
-          echo "💽 Dung lượng ổ đĩa cuối cùng:"
+          echo "💽 Final disk usage:"
           df -h /
           
           echo "::endgroup::"
@@ -774,47 +774,47 @@ jobs:
       REPO_NAME: ${{ github.event.repository.name }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       SUSFS_BASE_VERSION: ${{ needs.set-op-model.outputs.susfs_base_version }}
-      RELEASE_NAME: '*TEST BUILD* OnePlus Kernels Kèm KernelSU Next & SUSFS ${{ needs.set-op-model.outputs.susfs_base_version }} *TEST BUILD*'
+      RELEASE_NAME: '*TEST BUILD* OnePlus Kernels With KernelSU Next & SUSFS ${{ needs.set-op-model.outputs.susfs_base_version }} *TEST BUILD*'
     steps:
-      - name: 📥 Checkout mã nguồn
+      - name: 📥 Checkout code
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: 🏷️ Tạo và Đẩy Tag mới
+      - name: 🏷️ Generate and Create New Tag
         run: |
-          # Chỉ tìm kiếm các tag bắt đầu bằng phiên bản SUSFS này
+          # Only search for tags starting with this SUSFS version
           LATEST_MATCHING_TAG=$(gh api repos/$REPO_OWNER/$REPO_NAME/tags \
             --jq "[.[] | select(.name | startswith(\"${SUSFS_BASE_VERSION}-r\"))] \
                   | sort_by(.name | split(\"-r\")[1] | tonumber) \
                   | last | .name // empty")
           
           if [ -z "$LATEST_MATCHING_TAG" ]; then
-            # Không có release nào tồn tại cho phiên bản SUSFS này → tạo release đầu tiên
+            # No existing release for this version SUSFS → first release
             NEW_TAG="${SUSFS_BASE_VERSION}-r1"
           else
-            # Chỉ tăng hậu tố -r* của bản release mới nhất cho phiên bản này
+            # Only increment the -r* suffix of the latest release for this version
             NEW_TAG=$(echo "$LATEST_MATCHING_TAG" | awk -F'-r' '{printf "%s-r%d", $1, $2+1}')
           fi
           
-          echo "Tag mới: $NEW_TAG"
+          echo "New tag: $NEW_TAG"
           echo "NEW_TAG=${NEW_TAG}" >> $GITHUB_ENV
           git tag $NEW_TAG
           git push origin $NEW_TAG
 
-      - name: 📥 Tải xuống Artifacts
+      - name: 📥 Download Artifacts
         uses: actions/download-artifact@v8
         with:
           path: ./downloaded-artifacts
           merge-multiple: true
           skip-decompress: true
 
-      - name: 📝 Tạo danh sách thiết bị và Release Notes
+      - name: 📝 Generate Device List and Final Release Notes
         id: generate-notes
         run: |
-          echo "=== Bắt đầu tạo release notes ==="
+          echo "=== Start building the release notes ==="
           
-          # Thu thập siêu dữ liệu build
+          # Collect build metadata
           declare -A device_info
           
           JSON_BUILD_DATA=$(jq -c '.' ./downloaded-artifacts/matrix.json)
@@ -846,7 +846,7 @@ jobs:
           OPTIMIZE_LEVEL="${{ inputs.optimize_level }}"
           CLEAN_BUILD="${{ inputs.clean_build }}"
           
-          # Hash map cho GKI version
+          # Hash map for GKI version
           declare -A susfs_map=(
             ["android12-5.10"]="${{ needs.set-op-model.outputs.susfs_hash_android12_5_10 }}"
             ["android13-5.15"]="${{ needs.set-op-model.outputs.susfs_hash_android13_5_15 }}"
@@ -855,29 +855,29 @@ jobs:
             ["android16-6.12"]="${{ needs.set-op-model.outputs.susfs_hash_android16_6_12 }}"
           )
           
-          # Danh sách các phiên bản GKI có trong lần chạy này
+          # List of GKI versions present in this run
           IFS=',' read -ra active_gki_keys \
             <<< "${{ needs.set-op-model.outputs.active_gki_keys }}"
           
           cat << EOF > release_notes.md
-          # 🎯 Kernel OnePlus kèm KernelSU Next & SUSFS $SUSFS_BASE_VERSION
+          # 🎯 OnePlus Kernels with KernelSU Next & SUSFS $SUSFS_BASE_VERSION
           
-          > **Ngày Build:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')  
-          > **ID Build:** \`${{ github.run_id }}\`  
+          > **Build Date:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')  
+          > **Build ID:** \`${{ github.run_id }}\`  
           > **Workflow:** [\`${{ github.workflow }}\`](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
           
           ---
           
-          ## 📦 Thiết bị được Build (Tổng cộng ${#device_info[@]})
+          ## 📦 Built Devices (${#device_info[@]} total)
           
-          | Model | Phiên bản OS | Phiên bản Kernel | Tính năng |
+          | Model | OS Version | Kernel Version | Features |
           |-------|------------|----------------|----------|
           EOF
           
           for full_key in $(printf '%s\n' "${!device_info[@]}" | sort); do
             IFS='|' read -r model os_ver kernel_ver _ _ _ <<< "${device_info[$full_key]}"
             
-            # Sử dụng jq để trích xuất cờ tính năng cho model này từ ma trận JSON
+            # Use jq to extract feature flags for this model from the JSON matrix
             feature_flags=$(jq -r --arg MODEL "$model" '
               .[] | 
               select(.model == $MODEL) |
@@ -885,14 +885,14 @@ jobs:
             ' <<< "$JSON_BUILD_DATA")
             
             features=()
-             # Nếu không tìm thấy kết quả khớp, bỏ qua hoặc xử lý lỗi
+             # If no match found, skip or handle error
             if [[ -z "$feature_flags" ]]; then
-              echo "Cảnh báo: Không tìm thấy mục JSON cho model: $model" >&2
+              echo "Warning: No JSON entry found for model: $model" >&2
               features_str="N/A"
             else
               IFS=$'\t' read -r hmbird susfs bbr bbg ttl ip_set unicode ds ntsync <<< "$feature_flags"
               
-              # Xây dựng chuỗi tính năng dựa trên giá trị boolean
+              # Build features string based on boolean values
               [[ "$hmbird" == "true" ]] && features+=("🐦 HMBIRD")
               [[ "$susfs" == "true" ]] && features+=("ඞ SusFS")
               [[ "$bbr" == "true" ]] && features+=("🚀 BBR")
@@ -934,7 +934,7 @@ jobs:
             first_entry=$(printf '%s\n' "${!device_info[@]}" | sort | head -n1)
             IFS='|' read -r _ _ _ _ ksu_ver_global _ <<< "${device_info[$first_entry]}"
           else
-            echo "::error::Không tìm thấy thông tin thiết bị!" >&2
+            echo "::error::No device info found!" >&2
             exit 1
           fi
           
@@ -942,12 +942,12 @@ jobs:
           
           ---
           
-          ## 🔧 Cấu hình Build
+          ## 🔧 Build Configuration
           
-          | Thành phần | Phiên bản/Cài đặt |
+          | Component | Version/Setting |
           |-----------|----------------|
           EOF
-          # Hàm hiển thị: hash → hash trực tiếp, nhánh → nhánh (hash)
+          # Display function: hash → direct hash, branch → branch (hash)
           ksu_display_value() {
             local input="$1"
             local resolved="$2"
@@ -961,29 +961,29 @@ jobs:
           ksu_display=$(ksu_display_value "$ksu_ref" "$ksu_resolved_hash")
           if [ "$ksu_type" == "KSUN" ]; then
             cat << EOF >> release_notes.md
-          | **Nhánh KernelSU Next** | \`$ksu_display\` |
-          | **Phiên bản KernelSU Next** | \`$ksu_ver_global\` |
+          | **KernelSU Next Branch** | \`$ksu_display\` |
+          | **KernelSU Next Version** | \`$ksu_ver_global\` |
           EOF
           elif [ "$ksu_type" == "KSU" ]; then
             cat << EOF >> release_notes.md
-          | **Nhánh KernelSU** | \`$ksu_display\` |
-          | **Phiên bản KernelSU** | \`$ksu_ver_global\` |
+          | **KernelSU Branch** | \`$ksu_display\` |
+          | **KernelSU Version** | \`$ksu_ver_global\` |
           EOF
           else
             cat << EOF >> release_notes.md
-          | **Nhánh KernelSU Fork Chưa rõ** | \`\` |
-          | **Phiên bản KernelSU Fork Chưa rõ** | \`\` |
+          | **Unknown KernelSU Fork Branch** | \`\` |
+          | **Unknown KernelSU Fork Version** | \`\` |
           EOF
           fi
           cat << EOF >> release_notes.md
-          | **Phiên bản SUSFS** | \`$SUSFS_BASE_VERSION\` |
-          | **Mức độ Tối ưu hóa** | \`$OPTIMIZE_LEVEL\` |
-          | **Build Sạch** | $( [ "$CLEAN_BUILD" = "true" ] && echo "✅ Có (không dùng ccache)" || echo "❌ Không (bật ccache)" ) |
-          | **Trình biên dịch** | Clang (phiên bản tùy theo thiết bị) |
+          | **SUSFS Version** | \`$SUSFS_BASE_VERSION\` |
+          | **Optimization Level** | \`$OPTIMIZE_LEVEL\` |
+          | **Clean Build** | $( [ "$CLEAN_BUILD" = "true" ] && echo "✅ Yes (no ccache)" || echo "❌ No (ccache enabled)" ) |
+          | **Compiler** | Clang (version varies by device) |
           
-          ### 📌 Ánh xạ Nhánh SUSFS
+          ### 📌 SUSFS Branch Mapping
           
-          | Phiên bản Kernel | Commit SUSFS |
+          | Kernel Version | SUSFS Commit |
           |----------------|--------------|
           $(for key in "${active_gki_keys[@]}"; do
             echo "| $key | \`${susfs_map[$key]:-unknown}\` |"
@@ -991,154 +991,156 @@ jobs:
           
           ---
           
-          ## ✨ Tính năng & Khả năng
+          ## ✨ Features & Capabilities
           
-          ### 🔐 Quản lý Root
+          ### 🔐 Root Management
           EOF
           if [ "$ksu_type" == "KSUN" ]; then
             cat << EOF >> release_notes.md
-          - **KernelSU Next** - Giải pháp root cấp độ kernel thế hệ tiếp theo
+          - **KernelSU Next** - Next-generation kernel-level root solution
           EOF
           elif [ "$ksu_type" == "KSU" ]; then
             cat << EOF >> release_notes.md
-          - **KernelSU** - Giải pháp root cấp độ kernel
+          - **KernelSU** - Kernel-level root solution
           EOF
           fi
           cat << EOF >> release_notes.md
-          - **SUSFS $SUSFS_BASE_VERSION** - Các tính năng ẩn giấu và bảo mật nâng cao
+          - **SUSFS $SUSFS_BASE_VERSION** - Advanced hiding and security features
           EOF
           if [ "$ksu_type" == "KSUN" ] && [ "${ksu_ver_global:-0}" -lt 12884 ]; then
             cat << EOF >> release_notes.md
-          - **Hỗ trợ Magic Mount** - Sửa đổi hệ thống tập tin liền mạch
+          - **Magic Mount Support** - Seamless file system modifications
           EOF
           fi
           if [ "${ksu_ver_global:-0}" -lt 12884 ]; then
             cat << EOF >> release_notes.md
-          - **Manual Hooks** - scope_min_manual_hooks_v1.4 giúp tương thích tốt hơn
+          - **Manual Hooks** - scope_min_manual_hooks_v1.4 for better compatibility
           EOF
           fi
           cat << EOF >> release_notes.md
-          ### 🛡️ Bảo mật & Quyền riêng tư
-          - **Baseband Guard (BBG)** - Bảo mật baseband dựa trên LSM
-          - **Các tính năng Ẩn của SUSFS**:
-            - ✅ SUS_PATH - Ẩn các đường dẫn đáng ngờ
-            - ✅ SUS_MOUNT - Ẩn các điểm gắn kết (Không hỗ trợ Cli)
-            - ✅ SUS_KSTAT - Giả mạo thống kê kernel
-            - ✅ SPOOF_UNAME - Giả mạo phiên bản kernel
-            - ✅ SPOOF_CMDLINE - Giả mạo tham số khởi động
-            - ✅ OPEN_REDIRECT - Chuyển hướng truy cập tập tin
-            - ✅ SUS_MAP - Bảo vệ ánh xạ bộ nhớ
-            - ✅ AVC_SPOOF - Giả mạo nhật ký từ chối Procfs avc
-          - **Ptrace Leak Fix** - Cho các kernel < 5.16
-          - **Unicode Fix** - Ngăn chặn duyệt đường dẫn và các phát hiện khác bằng cách sử dụng codepoint Unicode không in được [Thử nghiệm]
+          ### 🛡️ Security & Privacy
+          - **Baseband Guard (BBG)** - LSM-based baseband security
+          - **SUSFS Hide Features**:
+            - ✅ SUS_PATH - Hide suspicious paths
+            - ✅ SUS_MOUNT - Hide mount points (No Cli Support)
+            - ✅ SUS_KSTAT - Spoof kernel statistics
+            - ✅ SPOOF_UNAME - Kernel version spoofing
+            - ✅ SPOOF_CMDLINE - Boot parameters spoofing
+            - ✅ OPEN_REDIRECT - File access redirection
+            - ✅ SUS_MAP - Memory mapping protection
+            - ✅ AVC_SPOOF - Spoof Procfs avc denial logs
+          - **Ptrace Leak Fix** - For kernels < 5.16
+          - **Unicode Fix** - Prevent path traversal and other detections using non-printable Unicode codepoints [Experimental]
           
-          ### 🚀 Hiệu suất & Mạng
-          - **BBRv1** - Cải thiện kiểm soát tắc nghẽn TCP
-          - **Wireguard** - Hỗ trợ VPN tích hợp sẵn
-          - **Hỗ trợ IP Set & IPv6 NAT** - Khả năng tường lửa nâng cao và hỗ trợ IPv6 NAT
-          - **Hỗ trợ TTL Target** - Thao tác gói tin mạng
-          - **LTO (Link Time Optimization)** - Tối ưu hóa kích thước và hiệu suất nhị phân
-          - **Build tăng tốc bằng ccache** - Thời gian biên dịch nhanh hơn
-          - **Các bản vá Tối ưu hóa** - Bộ nhớ, I/O, bộ lập lịch CPU, mạng và các tinh chỉnh chung khác
+          ### 🚀 Performance & Networking
+          - **BBRv1** - Improved TCP congestion control
+          - **Wireguard** - Built-in VPN support
+          - **IP Set & IPv6 NAT Support** - Advanced firewall capabilities and IPv6 NAT Support
+          - **TTL Target Support** - Network packet manipulation
+          - **LTO (Link Time Optimization)** - Optimized binary size and performance
+          - **ccache-accelerated builds** - Faster compilation times
+          - **Optimisation Patches** - Memory, I/O, CPU scheduler, network and other general tunings
           
-          ### 🔧 Tính năng Hệ thống
-          - **TMPFS_XATTR** - Thuộc tính mở rộng cho tmpfs (Hỗ trợ Mountify)
-          - **TMPFS_POSIX_ACL** - POSIX ACL cho tmpfs
-          - **HMBIRD SCX** - Phần mở rộng bộ lập lịch cho tất cả các thiết bị SM8750/MT6991
-          - **Droidspaces** - Hỗ trợ các bộ chứa Linux di động để chạy môi trường Linux đầy đủ.
-          - **NTSync** - Cung cấp các nguyên hàm đồng bộ hóa độ trễ thấp, hiệu suất cao tương thích với API kernel Windows NT
+          ### 🔧 System Features
+          - **TMPFS_XATTR** - Extended attributes for tmpfs (Mountify support)
+          - **TMPFS_POSIX_ACL** - POSIX ACLs for tmpfs
+          - **HMBIRD SCX** - Scheduler extensions for all SM8750/MT6991 devices
+          - **Droidspaces** - Support Portable Linux containers to run full Linux environments.
+          - **NTSync** - Provide high-performance, low-latency synchronization primitives compatible with the Windows NT kernel API
           
           ---
           
-          ## 📱 Ứng dụng Manager
+          ## 📱 Manager Applications
           
-          ### Manager Chính thức
+          ### Official Manager
           EOF
           if [ "$ksu_type" == "KSUN" ]; then
             cat << EOF >> release_notes.md
-          - **KernelSU Next Manager** → [GitHub Release](https://github.com/KernelSU-Next/KernelSU-Next/releases)
+          - **KernelSU Next Manager**  
+            → [GitHub Release](https://github.com/KernelSU-Next/KernelSU-Next/releases)
           EOF
           elif [ "$ksu_type" == "KSU" ]; then
             cat << EOF >> release_notes.md
-          - **KernelSU Manager** → [GitHub Release](https://github.com/tiann/KernelSU/releases)
+          - **KernelSU Manager**  
+            → [GitHub Release](https://github.com/tiann/KernelSU/releases)
           EOF
           fi
           cat << EOF >> release_notes.md
-          ### Manager Cộng đồng
-          - **WildKSU Manager** (Khuyên dùng để có thêm tính năng)  
+          ### Community Managers
+          - **WildKSU Manager** (Recommended for additional features)  
             → [GitHub Release](https://github.com/WildKernels/Wild_KSU/releases)
           
-          ### Module Bắt buộc
-          - **KSU SUSFS Module** (Bắt buộc cho các tính năng của SUSFS)  
+          ### Required Module
+          - **KSU SUSFS Module** (Required for SUSFS features)  
             → [GitHub Release](https://github.com/sidex15/ksu_module_susfs/releases)
           
-          ### Công cụ Flash Khuyên dùng
-          - **Kernel Flasher** (Bắt buộc để flash các file zip AnyKernel3, sao lưu và OTA)  
+          ### Recomended Flasher
+          - **Kernel Flasher** (Required for flashing AnyKernel3 zips and backups and OTA)  
             → [GitHub Release](https://github.com/fatalcoder524/KernelFlasher/releases)
           
           ---
           
-          ## 📥 Hướng dẫn Cài đặt
+          ## 📥 Installation Instructions
           
-          ### Điều kiện tiên quyết
-          - Đã mở khóa Bootloader.
-          - Đã sao lưu boot image hiện tại của bạn.
-          - Đã có quyền root bằng Magisk / KernelSU / Apatch (Bất kỳ nhánh nào).
+          ### Prerequisites
+          - Unlocked bootloader.
+          - Backup your current boot image.
+          - Have root access using Magisk / KernelSU / Apatch (Any forks).
           
-          ### Qua Kernel Flasher
-          1. Tải xuống file ZIP phù hợp cho thiết bị của bạn.
-          2. Flash file ZIP vào khe (slot) đang hoạt động bằng Kernel Flasher.
-          3. Tùy thuộc vào phương pháp root, hãy làm theo các bước sau:
-            a. Nếu quyền root từ Magisk (bất kỳ nhánh nào): Thực hiện gỡ cài đặt hoàn toàn từ Magisk Manager.
-            b. Nếu quyền root từ KSU LKM (bất kỳ nhánh nào): Flash Stock boot/init_boot/vendor_boot tùy theo image bạn đã patch để lấy root hoặc Gỡ cài đặt LKM. Khuyên dùng flash image gốc (stock).
-            c. Nếu quyền root từ KSU GKI (bất kỳ nhánh nào): Gỡ cài đặt Manager. Xóa file bin /data/adb/ksud. Cài đặt lại Manager dựa trên phiên bản AK3 zip. [Không bắt buộc phải làm mỗi lần]
-            d. Nếu quyền root từ Apatch (bất kỳ nhánh nào): Xóa tất cả các file trong /data/adb. Việc này để bắt đầu lại từ đầu và giảm thiểu việc các module phát hiện nhiều trình triển khai root.
-          4. Khởi động lại hệ thống.
-          5. Cài đặt KernelSU-Next/WildSU Manager.
-          6. Cài đặt module SusFS từ manager.
-          
-          ---
-          
-          ## 📜 Nhật ký Thay đổi (Changelog)
-          
-          ### Bản Release này
-          - Đã cập nhật SUSFS lên $SUSFS_BASE_VERSION.
-          - Đã thêm hỗ trợ HMBIRD cho tất cả các thiết bị SM8750/MT6991.
-          - Đã cải thiện hệ thống build ccache.
-          - Đã nâng cao khả năng ẩn giấu của SUSFS.
-          - Đã thêm hỗ trợ IP_SET, IPv6 NAT và TTL.
-          - Đã thêm hỗ trợ TMPFS_XATTR và TMPFS_POSIX_ACL cho Mountify.
-          - Đã thêm bản vá Ptrace leak cho các kernel < 5.16.
-          - Tối ưu hóa trình biên dịch (${{ inputs.optimize_level }}).
-          - Các Tối ưu hóa Chung khác.
-          - Hỗ trợ Wild_KSU Manager.
-          - Bản vá vượt qua Unicode.
-          - Hỗ trợ Droidspaces.
-          - Hỗ trợ NTSync.
-          
-          ### Các bản Release trước
-          Xem tại [Trang Releases](${{ github.server_url }}/${{ github.repository }}/releases)
+          ### Via Kernel Flasher
+          1. Download the appropriate ZIP for your device.
+          2. Flash the ZIP file to active slot using Kernel Flasher.
+          3. Based on root method, follow the steps:
+            a. If root access is from Magisk(any forks): Perform complete uninstall from Magisk Manager.
+            b. If root access is from KSU LKM(any forks): Flash Stock boot/init_boot/vendor_boot based on what you image you patched to get root access or Uninstall LKM. Recommended to flash stock image.
+            c. If root access is from KSU GKI(any forks): Uninstall Manager. Delete /data/adb/ksud bin file. Reinstall Manager based on AK3 zip version. [Not required to do everytime]
+            d. If root access is from Apatch(any forks): Delete all files from /data/adb. This is to start fresh and reduce multiple root implementation detected by modules.
+          4. Reboot system.
+          5. Install KernelSU-Next/WildSU Manager.
+          6. Install SusFS module from manager.
           
           ---
           
-          ## 🙏 Lời cảm ơn (Credits)
+          ## 📜 Changelog
           
-          - **Đội ngũ KernelSU Next** - Giải pháp Root
-          - **Đội ngũ KernelSU** - Giải pháp Root
-          - **simonpunk** - Phát triển SUSFS
-          - **OnePlus** - Mã nguồn Kernel
-          - **Những người đóng góp trong Cộng đồng** - Thử nghiệm và phản hồi
+          ### This Release
+          - Updated SUSFS to $SUSFS_BASE_VERSION.
+          - Added HMBIRD support for all SM8750/MT6991 devices.
+          - Improved ccache build system.
+          - Enhanced SUSFS hiding capabilities.
+          - Added IP_SET, IPv6 NAT and TTL support.
+          - Added TMPFS_XATTR and TMPFS_POSIX_ACL support for Mountify.
+          - Added Ptrace leak fix for kernels < 5.16.
+          - Compiler optimizations (${{ inputs.optimize_level }}).
+          - Additional General Optimisations.
+          - Wild_KSU Manager Support.
+          - Unicode Bypass Fix
+          - Droidspaces Support
+          - NTSync Support
+          
+          ### Previous Releases
+          See [Releases Page](${{ github.server_url }}/${{ github.repository }}/releases)
           
           ---
           
-          **⚡ Được xây dựng với ❤️ bởi cộng đồng**
+          ## 🙏 Credits
+          
+          - **KernelSU Next Team** - Root solution
+          - **KernelSU Team** - Root solution
+          - **simonpunk** - SUSFS development
+          - **OnePlus** - Kernel source code
+          - **Community Contributors** - Testing and feedback
+          
+          ---
+          
+          **⚡ Built with ❤️ by the community**
           
           EOF
           
-          echo "--- Release Notes Cuối cùng ---"
+          echo "--- Final Release Notes ---"
           cat release_notes.md
 
-      - name: 🚀 Tạo GitHub Release
+      - name: 🚀 Create GitHub Release
         run: |
           gh release create "${{ env.NEW_TAG }}" \
             --repo "${{ env.REPO_OWNER }}/${{ env.REPO_NAME }}" \
@@ -1146,28 +1148,28 @@ jobs:
             --notes-file release_notes.md \
             --draft
 
-      - name: 📤 Upload file Release tự động
+      - name: 📤 Upload Release Assets Dynamically
         run: |
           for file in ./downloaded-artifacts/*.zip; do
             if [ -f "$file" ]; then
-              echo "Đang upload $file..."
+              echo "Uploading $file..."
               gh release upload "${{ env.NEW_TAG }}" "$file" --clobber
             fi
           done
 
-      - name: 📊 Tổng kết Release
+      - name: 📊 Release summary
         if: success()
         run: |
           cat >> $GITHUB_STEP_SUMMARY << EOF
           
           ---
           
-          ## 🎉 Tạo Release Thành công
+          ## 🎉 Release Created Successfully
           
           **Tag:** [\`${{ env.NEW_TAG }}\`](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ env.NEW_TAG }})  
-          **Số lượng Kernel:** $(find ./downloaded-artifacts -maxdepth 1 -name "*.zip" -type f | wc -l)
+          **Kernels:** $(find ./downloaded-artifacts -maxdepth 1 -name "*.zip" -type f | wc -l)
           
-          ### 📦 File đính kèm (Assets)
+          ### 📦 Assets
           EOF
           
           for zip in ./downloaded-artifacts/*.zip; do
@@ -1178,74 +1180,3 @@ jobs:
               echo "- \`$name\` (${size_mb} MB)" >> $GITHUB_STEP_SUMMARY
             fi
           done
-
-      - name: 📢 Gửi thông báo Telegram (Kênh)
-        env:
-          TG_BOT_TK: ${{ secrets.TG_BOT_TK }}
-          CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: |
-          set -euo pipefail
-          
-          TEXT=$(cat <<EOF
-          <b>🚀 New OnePlus Kernel Release! 🚀</b>
-          
-          🌿 Branch: <code>${{ github.ref_name }}</code>
-          🏷️ Tag: <code>${NEW_TAG}</code>
-          📦 SUSFS Version: <code>${SUSFS_BASE_VERSION}</code>
-          
-          📥 Download: <a href="${{ github.server_url }}/${{ github.repository }}/releases/tag/${NEW_TAG}">Click Here</a>
-          EOF
-          )
-
-          curl -s "https://api.telegram.org/bot${TG_BOT_TK}/sendMessage" \
-            -d chat_id="${CHAT_ID}" \
-            -d parse_mode="HTML" \
-            --data-urlencode text="${TEXT}"
-
-      # - name: 📢 Gửi thông báo Telegram (Nhóm)
-      #   env:
-      #     TG_BOT_TK: ${{ secrets.TG_BOT_TK }}
-      #     CHAT_ID: ${{ secrets.TG_CHAT_ID2 }}
-      #   run: |
-      #     set -euo pipefail
-          
-      #     TEXT=$(cat <<EOF
-      #     <b>🚀 New OnePlus Kernel Release! 🚀</b>
-          
-      #     🌿 Branch: <code>${{ github.ref_name }}</code>
-      #     🏷️ Tag: <code>${NEW_TAG}</code>
-      #     📦 SUSFS Version: <code>${SUSFS_BASE_VERSION}</code>
-          
-      #     📥 Download: <a href="${{ github.server_url }}/${{ github.repository }}/releases/tag/${NEW_TAG}">Click Here</a>
-      #     EOF
-      #     )
-
-      #     curl -s "https://api.telegram.org/bot${TG_BOT_TK}/sendMessage" \
-      #       -d chat_id="${CHAT_ID}" \
-      #       -d parse_mode="HTML" \
-      #       --data-urlencode text="${TEXT}"
-
-      # - name: 📢 Gửi thông báo Telegram (Nhóm thảo luận)
-      #   env:
-      #     TG_BOT_TK: ${{ secrets.TG_BOT_TK }}
-      #     CHAT_ID: ${{ secrets.CHAT_ID_3 }}
-      #     message_thread_id: ${{secrets.MESSAGE_THREAD_ID_2}}
-      #   run: |
-      #     set -euo pipefail
-          
-      #     TEXT=$(cat <<EOF
-      #     <b>🚀 New OnePlus Kernel Release! 🚀</b>
-          
-      #     🌿 Branch: <code>${{ github.ref_name }}</code>
-      #     🏷️ Tag: <code>${NEW_TAG}</code>
-      #     📦 SUSFS Version: <code>${SUSFS_BASE_VERSION}</code>
-          
-      #     📥 Download: <a href="${{ github.server_url }}/${{ github.repository }}/releases/tag/${NEW_TAG}">Click Here</a>
-      #     EOF
-      #     )
-
-      #     curl -s "https://api.telegram.org/bot${TG_BOT_TK}/sendMessage" \
-      #       -d chat_id="${CHAT_ID}" \
-      #       -d message_thread_id="${message_thread_id}" \
-      #       -d parse_mode="HTML" \
-      #       --data-urlencode text="${TEXT}"
